@@ -1,0 +1,6 @@
+{
+  "name": "Smart Employee Attendance & Payroll System",
+  "description": "Enterprise QR code-based employee attendance tracking, overtime calculation, and automated payroll management system.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
