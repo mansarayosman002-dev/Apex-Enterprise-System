@@ -10,8 +10,13 @@ declare global {
 export const createPool = () => {
   if (!global._postgresPool) {
     if (process.env.DATABASE_URL) {
+      const isLocal =
+        process.env.DATABASE_URL.includes('localhost') ||
+        process.env.DATABASE_URL.includes('127.0.0.1');
+
       global._postgresPool = new Pool({
         connectionString: process.env.DATABASE_URL,
+        ssl: isLocal ? false : { rejectUnauthorized: false },
         max: 10,
         connectionTimeoutMillis: 15000,
       });
@@ -34,6 +39,6 @@ export const createPool = () => {
   return global._postgresPool;
 };
 
-const pool = createPool();
+export const pool = createPool();
 
 export const db = drizzle(pool, { schema });

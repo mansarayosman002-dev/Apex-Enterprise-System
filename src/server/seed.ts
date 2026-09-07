@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import { db } from '../db/index.ts';
+import { db, pool } from '../db/index.ts';
 import {
   roles,
   departments,
@@ -14,8 +14,122 @@ import {
 } from '../db/schema.ts';
 import { eq, sql } from 'drizzle-orm';
 
+const INITIAL_SCHEMA_DDL = `
+  CREATE TABLE IF NOT EXISTS roles (
+    id SERIAL PRIMARY KEY,
+    role_name TEXT NOT NULL UNIQUE,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT NOW() NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS departments (
+    id SERIAL PRIMARY KEY,
+    department_name TEXT NOT NULL UNIQUE,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT NOW() NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS employees (
+    id SERIAL PRIMARY KEY,
+    employee_code TEXT NOT NULL UNIQUE,
+    first_name TEXT NOT NULL,
+    last_name TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE,
+    phone TEXT NOT NULL,
+    department_id INTEGER NOT NULL REFERENCES departments(id) ON DELETE RESTRICT,
+    position TEXT NOT NULL,
+    basic_salary NUMERIC(12, 2) DEFAULT '0.00' NOT NULL,
+    status TEXT DEFAULT 'active' NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS qr_codes (
+    id SERIAL PRIMARY KEY,
+    employee_id INTEGER NOT NULL UNIQUE REFERENCES employees(id) ON DELETE CASCADE,
+    qr_value TEXT NOT NULL UNIQUE,
+    generated_at TIMESTAMP DEFAULT NOW() NOT NULL,
+    status TEXT DEFAULT 'active' NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    username TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    role_id INTEGER NOT NULL REFERENCES roles(id) ON DELETE RESTRICT,
+    employee_id INTEGER REFERENCES employees(id) ON DELETE SET NULL,
+    firebase_uid TEXT,
+    status TEXT DEFAULT 'active' NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS attendance (
+    id SERIAL PRIMARY KEY,
+    employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+    attendance_date TEXT NOT NULL,
+    check_in TEXT NOT NULL,
+    check_out TEXT,
+    working_hours NUMERIC(6, 2) DEFAULT '0.00' NOT NULL,
+    overtime_hours NUMERIC(6, 2) DEFAULT '0.00' NOT NULL,
+    status TEXT DEFAULT 'Present' NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW() NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS overtime (
+    id SERIAL PRIMARY KEY,
+    employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+    overtime_date TEXT NOT NULL,
+    hours NUMERIC(6, 2) DEFAULT '0.00' NOT NULL,
+    rate_multiplier NUMERIC(4, 2) DEFAULT '1.50' NOT NULL,
+    amount NUMERIC(12, 2) DEFAULT '0.00' NOT NULL,
+    reason TEXT,
+    status TEXT DEFAULT 'Pending' NOT NULL,
+    approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    approved_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW() NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS payroll (
+    id SERIAL PRIMARY KEY,
+    employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+    payroll_period TEXT NOT NULL,
+    basic_salary NUMERIC(12, 2) DEFAULT '0.00' NOT NULL,
+    overtime_amount NUMERIC(12, 2) DEFAULT '0.00' NOT NULL,
+    allowances NUMERIC(12, 2) DEFAULT '0.00' NOT NULL,
+    deductions NUMERIC(12, 2) DEFAULT '0.00' NOT NULL,
+    gross_salary NUMERIC(12, 2) DEFAULT '0.00' NOT NULL,
+    net_salary NUMERIC(12, 2) DEFAULT '0.00' NOT NULL,
+    status TEXT DEFAULT 'Pending' NOT NULL,
+    processed_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW() NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS system_settings (
+    id SERIAL PRIMARY KEY,
+    setting_key TEXT NOT NULL UNIQUE,
+    setting_value TEXT NOT NULL,
+    description TEXT,
+    updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS audit_logs (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    username TEXT,
+    action TEXT NOT NULL,
+    entity TEXT NOT NULL,
+    entity_id TEXT,
+    details TEXT,
+    created_at TIMESTAMP DEFAULT NOW() NOT NULL
+  );
+`;
+
 export async function runDatabaseSeed(force = false) {
   try {
+    // Ensure all database tables exist before querying or seeding
+    await pool.query(INITIAL_SCHEMA_DDL);
+
     // Check if roles already exist
     const existingRoles = await db.select().from(roles);
     if (existingRoles.length > 0 && !force) {
