@@ -57,7 +57,7 @@ export const LoginPage: React.FC = () => {
       {/* =========================================================
           LEFT HALF: Striking Brand Visual & Feature Showcase
       ========================================================= */}
-      <div className="relative w-full lg:w-1/2 min-h-[420px] lg:min-h-screen flex flex-col justify-between p-8 sm:p-12 lg:p-16 overflow-hidden bg-slate-950 border-b lg:border-b-0 lg:border-r border-slate-800/80">
+      <div className="relative w-full lg:w-1/2 min-h-[220px] sm:min-h-[320px] lg:min-h-screen flex flex-col justify-between p-5 sm:p-10 lg:p-16 overflow-hidden bg-slate-950 border-b lg:border-b-0 lg:border-r border-slate-800/80">
         {/* Background Visual Asset with Atmospheric Overlays */}
         <div className="absolute inset-0 z-0">
           <img
@@ -75,7 +75,7 @@ export const LoginPage: React.FC = () => {
         {/* Top Header Section */}
         <div className="relative z-10">
           <div className="flex items-center justify-between">
-            <ApexLogo size="lg" inverted={true} />
+            <ApexLogo size="md" inverted={true} />
             <span className="hidden sm:inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-[11px] font-semibold tracking-wide bg-cyan-950/80 border border-cyan-500/30 text-cyan-300 backdrop-blur-md">
               <span className="h-2 w-2 rounded-full bg-cyan-400 animate-pulse" />
               <span>Sierra Leone Enterprise HRMS</span>
@@ -84,20 +84,20 @@ export const LoginPage: React.FC = () => {
         </div>
 
         {/* Center Content Section */}
-        <div className="relative z-10 my-auto py-10">
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-white leading-tight">
+        <div className="relative z-10 my-auto py-4 sm:py-8 lg:py-10">
+          <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black tracking-tight text-white leading-tight">
             Smart Attendance & <br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-teal-300 to-indigo-400">
               Automated Payroll
             </span>
           </h1>
 
-          <p className="mt-4 text-sm sm:text-base text-slate-300 max-w-lg leading-relaxed font-normal">
+          <p className="mt-2.5 sm:mt-4 text-xs sm:text-base text-slate-300 max-w-lg leading-relaxed font-normal">
             Enterprise-grade identity verification, dynamic QR biometric check-in, real-time grace calculations, and automated Sierra Leone (NLe) payroll compliance.
           </p>
 
-          {/* Key Value Feature Badges */}
-          <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg">
+          {/* Key Value Feature Badges - hidden on small phones to keep login form immediately accessible */}
+          <div className="mt-6 hidden sm:grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg">
             <div className="flex items-center space-x-3 p-3 rounded-xl bg-slate-900/60 backdrop-blur-md border border-slate-800/80 hover:border-cyan-500/40 transition">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
                 <QrCode className="h-5 w-5" />
@@ -141,9 +141,9 @@ export const LoginPage: React.FC = () => {
         </div>
 
         {/* Bottom Trust Footer */}
-        <div className="relative z-10 pt-6 border-t border-slate-800/60 flex flex-col sm:flex-row items-start sm:items-center justify-between text-xs text-slate-400 gap-3">
+        <div className="relative z-10 pt-4 sm:pt-6 border-t border-slate-800/60 flex flex-col sm:flex-row items-start sm:items-center justify-between text-[11px] sm:text-xs text-slate-400 gap-2">
           <div className="flex items-center space-x-2">
-            <Building2 className="h-4 w-4 text-cyan-400" />
+            <Building2 className="h-4 w-4 text-cyan-400 shrink-0" />
             <span>Apex Enterprise Solutions (SL) Ltd. • Freetown, SL</span>
           </div>
         </div>
@@ -152,13 +152,10 @@ export const LoginPage: React.FC = () => {
       {/* =========================================================
           RIGHT HALF: Authentication Terminal
       ========================================================= */}
-      <div className="w-full lg:w-1/2 min-h-screen flex flex-col justify-between bg-slate-50 dark:bg-slate-900 p-6 sm:p-10 lg:p-14 overflow-y-auto transition-colors duration-150">
+      <div className="w-full lg:w-1/2 flex flex-col justify-between bg-slate-50 dark:bg-slate-900 p-5 sm:p-10 lg:p-14 overflow-y-auto transition-colors duration-150">
         {/* Top Action Bar */}
-        <div className="flex items-center justify-between pb-6">
-          <div className="lg:hidden">
-            <ApexLogo size="sm" />
-          </div>
-          <div className="hidden lg:flex items-center space-x-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
+        <div className="flex items-center justify-between pb-4 sm:pb-6">
+          <div className="flex items-center space-x-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
             <ShieldCheck className="h-4 w-4 text-emerald-500" />
             <span>Secure SSL Encrypted Session</span>
           </div>

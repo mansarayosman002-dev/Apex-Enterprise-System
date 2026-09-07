@@ -60,12 +60,12 @@ export const ManualAttendanceModal: React.FC<ManualAttendanceModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-      <div className="flex w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl">
-        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 px-6 py-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-2.5 sm:p-4 backdrop-blur-xs">
+      <div className="flex w-full max-w-lg max-h-[92vh] flex-col overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 px-4 sm:px-6 py-3.5 sm:py-4">
           <div>
-            <h3 className="text-base font-semibold text-slate-900 dark:text-white">Manual Attendance Entry</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Record off-site work, authorized leaves, or manual corrections</p>
+            <h3 className="text-sm sm:text-base font-semibold text-slate-900 dark:text-white">Manual Attendance Entry</h3>
+            <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400">Record off-site work, authorized leaves, or manual corrections</p>
           </div>
           <button
             onClick={onClose}
@@ -75,7 +75,7 @@ export const ManualAttendanceModal: React.FC<ManualAttendanceModalProps> = ({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
           {error && (
             <div className="flex items-center space-x-2 rounded-lg bg-rose-50 dark:bg-rose-950/60 p-3 text-xs text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
               <AlertCircle className="h-4 w-4 shrink-0" />

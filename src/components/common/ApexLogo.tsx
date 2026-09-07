@@ -61,7 +61,7 @@ export const ApexLogo: React.FC<ApexLogoProps> = ({
         </div>
         {showSubtitle && (
           <p
-            className={`font-medium tracking-wide mt-0.5 ${currentSize.sub} ${inverted ? 'text-slate-300' : 'text-slate-500 dark:text-slate-400'
+            className={`font-medium tracking-wide mt-0.5 hidden sm:block ${currentSize.sub} ${inverted ? 'text-slate-300' : 'text-slate-500 dark:text-slate-400'
               }`}
           >
             Smart Attendance & Payroll System

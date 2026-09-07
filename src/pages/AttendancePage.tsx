@@ -95,24 +95,24 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ onOpenScanner })
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-2.5 w-full sm:w-auto">
           <button
             onClick={exportCSV}
-            className="flex items-center space-x-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-2xs transition"
+            className="flex items-center justify-center space-x-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-2xs transition"
           >
             <Download className="h-4 w-4 text-slate-500 dark:text-slate-400" />
             <span>Export CSV</span>
           </button>
           <button
             onClick={() => setIsManualModalOpen(true)}
-            className="flex items-center space-x-1.5 rounded-xl border border-indigo-200 dark:border-indigo-900/60 bg-indigo-50 dark:bg-indigo-950/60 px-3.5 py-2 text-xs font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition"
+            className="flex items-center justify-center space-x-1.5 rounded-xl border border-indigo-200 dark:border-indigo-900/60 bg-indigo-50 dark:bg-indigo-950/60 px-3.5 py-2 text-xs font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition"
           >
             <Plus className="h-4 w-4" />
             <span>Manual Entry</span>
           </button>
           <button
             onClick={onOpenScanner}
-            className="flex items-center space-x-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-indigo-700 transition"
+            className="flex items-center justify-center space-x-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-indigo-700 transition"
           >
             <ScanLine className="h-4 w-4" />
             <span>Open Terminal Scanner</span>
@@ -175,15 +175,15 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ onOpenScanner })
                 setFilterDept('');
                 setFilterStatus('');
               }}
-              className="rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition"
+              className="w-full sm:w-auto rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-3.5 py-2 sm:py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition"
             >
-              Reset
+              Reset Filters
             </button>
           </div>
         )}
       </div>
 
-      {/* Attendance Table */}
+      {/* Attendance Content */}
       <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shadow-xs">
         {isLoading ? (
           <div className="flex h-64 items-center justify-center">
@@ -196,72 +196,136 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ onOpenScanner })
             <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Scan a QR code or create a manual entry.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
-                <tr>
-                  <th className="px-4 py-3 font-semibold">Employee</th>
-                  <th className="px-4 py-3 font-semibold">Department</th>
-                  <th className="px-4 py-3 font-semibold">Date</th>
-                  <th className="px-4 py-3 font-semibold">Check-In</th>
-                  <th className="px-4 py-3 font-semibold">Check-Out</th>
-                  <th className="px-4 py-3 font-semibold">Hours (Reg/OT)</th>
-                  <th className="px-4 py-3 font-semibold">Status</th>
-                  <th className="px-4 py-3 font-semibold">Notes</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {attendance.map((rec) => (
-                  <tr key={rec.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/50 transition">
-                    <td className="px-4 py-3">
-                      <p className="font-bold text-slate-900 dark:text-white">{rec.employeeName}</p>
-                      <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500">{rec.employeeCode}</span>
-                    </td>
-                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{rec.departmentName}</td>
-                    <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-200">{rec.attendanceDate}</td>
-                    <td className="px-4 py-3 font-mono font-medium text-emerald-700 dark:text-emerald-400">{rec.checkIn}</td>
-                    <td className="px-4 py-3 font-mono text-slate-600 dark:text-slate-300">
+          <>
+            {/* Mobile Cards View (displayed on phones < md) */}
+            <div className="divide-y divide-slate-100 dark:divide-slate-800 md:hidden">
+              {attendance.map((rec) => (
+                <div key={rec.id} className="p-4 space-y-2.5 hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-bold text-sm text-slate-900 dark:text-white">{rec.employeeName}</p>
+                      <div className="flex items-center space-x-2 text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                        <span className="font-mono text-indigo-600 dark:text-indigo-400 font-semibold">{rec.employeeCode}</span>
+                        <span>•</span>
+                        <span>{rec.departmentName}</span>
+                      </div>
+                    </div>
+                    <span
+                      className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold shrink-0 ${
+                        rec.status === 'Present'
+                          ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300'
+                          : rec.status === 'Late'
+                          ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300'
+                          : rec.status === 'Overtime'
+                          ? 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-800 dark:text-indigo-300'
+                          : rec.status === 'Absent'
+                          ? 'bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-300'
+                      }`}
+                    >
+                      {rec.status}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 p-2.5 text-center text-xs">
+                    <div>
+                      <span className="text-[10px] uppercase font-semibold text-slate-400 dark:text-slate-500 block">Check In</span>
+                      <span className="font-mono font-medium text-emerald-700 dark:text-emerald-400">{rec.checkIn}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] uppercase font-semibold text-slate-400 dark:text-slate-500 block">Check Out</span>
                       {rec.checkOut ? (
-                        <span className="text-amber-700 dark:text-amber-400 font-medium">{rec.checkOut}</span>
+                        <span className="font-mono font-medium text-amber-700 dark:text-amber-400">{rec.checkOut}</span>
                       ) : (
-                        <span className="inline-flex items-center text-[10px] text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded">
-                          ● On Shift
+                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-100/60 dark:bg-emerald-950/80 px-1.5 py-0.5 rounded">
+                          On Shift
                         </span>
                       )}
-                    </td>
-                    <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
-                      <span>{rec.workingHours}h</span>
-                      {parseFloat(rec.overtimeHours?.toString() || '0') > 0 && (
-                        <span className="ml-1.5 text-indigo-600 dark:text-indigo-400 font-semibold font-mono">
-                          (+{rec.overtimeHours}h OT)
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
-                          rec.status === 'Present'
-                            ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300'
-                            : rec.status === 'Late'
-                            ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300'
-                            : rec.status === 'Overtime'
-                            ? 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-800 dark:text-indigo-300'
-                            : rec.status === 'Absent'
-                            ? 'bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300'
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-300'
-                        }`}
-                      >
-                        {rec.status}
+                    </div>
+                    <div>
+                      <span className="text-[10px] uppercase font-semibold text-slate-400 dark:text-slate-500 block">Hours</span>
+                      <span className="font-medium text-slate-800 dark:text-slate-200">
+                        {rec.workingHours}h {parseFloat(rec.overtimeHours?.toString() || '0') > 0 ? `(+${rec.overtimeHours}h)` : ''}
                       </span>
-                    </td>
-                    <td className="px-4 py-3 text-slate-500 dark:text-slate-400 text-[11px] max-w-xs truncate">
-                      {rec.notes || '—'}
-                    </td>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-[11px] text-slate-400 dark:text-slate-500 pt-0.5">
+                    <span>Date: <strong className="text-slate-700 dark:text-slate-300">{rec.attendanceDate}</strong></span>
+                    {rec.notes && <span className="truncate max-w-[160px] text-slate-500 dark:text-slate-400 italic">{rec.notes}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop Table View (hidden on mobile, visible on md+) */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left text-xs min-w-[700px]">
+                <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                  <tr>
+                    <th className="px-4 py-3 font-semibold">Employee</th>
+                    <th className="px-4 py-3 font-semibold">Department</th>
+                    <th className="px-4 py-3 font-semibold">Date</th>
+                    <th className="px-4 py-3 font-semibold">Check-In</th>
+                    <th className="px-4 py-3 font-semibold">Check-Out</th>
+                    <th className="px-4 py-3 font-semibold">Hours (Reg/OT)</th>
+                    <th className="px-4 py-3 font-semibold">Status</th>
+                    <th className="px-4 py-3 font-semibold">Notes</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {attendance.map((rec) => (
+                    <tr key={rec.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/50 transition">
+                      <td className="px-4 py-3">
+                        <p className="font-bold text-slate-900 dark:text-white">{rec.employeeName}</p>
+                        <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500">{rec.employeeCode}</span>
+                      </td>
+                      <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{rec.departmentName}</td>
+                      <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-200">{rec.attendanceDate}</td>
+                      <td className="px-4 py-3 font-mono font-medium text-emerald-700 dark:text-emerald-400">{rec.checkIn}</td>
+                      <td className="px-4 py-3 font-mono text-slate-600 dark:text-slate-300">
+                        {rec.checkOut ? (
+                          <span className="text-amber-700 dark:text-amber-400 font-medium">{rec.checkOut}</span>
+                        ) : (
+                          <span className="inline-flex items-center text-[10px] text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded">
+                            ● On Shift
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
+                        <span>{rec.workingHours}h</span>
+                        {parseFloat(rec.overtimeHours?.toString() || '0') > 0 && (
+                          <span className="ml-1.5 text-indigo-600 dark:text-indigo-400 font-semibold font-mono">
+                            (+{rec.overtimeHours}h OT)
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                            rec.status === 'Present'
+                              ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300'
+                              : rec.status === 'Late'
+                              ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300'
+                              : rec.status === 'Overtime'
+                              ? 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-800 dark:text-indigo-300'
+                              : rec.status === 'Absent'
+                              ? 'bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-300'
+                          }`}
+                        >
+                          {rec.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-slate-500 dark:text-slate-400 text-[11px] max-w-xs truncate">
+                        {rec.notes || '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 

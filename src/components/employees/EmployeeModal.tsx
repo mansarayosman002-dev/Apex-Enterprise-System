@@ -180,15 +180,15 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-2 sm:p-4 backdrop-blur-xs">
       <div className="flex max-h-[92vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 px-6 py-4">
+        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 px-4 sm:px-6 py-3.5 sm:py-4">
           <div>
-            <h3 className="text-base font-semibold text-slate-900 dark:text-white">
+            <h3 className="text-sm sm:text-base font-semibold text-slate-900 dark:text-white">
               {isEdit ? 'Edit Employee Details' : 'Register New Employee'}
             </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400">
               {isEdit
                 ? 'Update personnel record, contact information, and departmental assignment'
                 : 'Fills personnel roster and generates an authentic attendance QR badge'}
@@ -203,7 +203,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
           {error && (
             <div className="flex items-center space-x-2 rounded-xl bg-rose-50 dark:bg-rose-950/60 p-3.5 text-xs text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
               <AlertCircle className="h-4 w-4 shrink-0 text-rose-600 dark:text-rose-400" />
@@ -212,7 +212,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
           )}
 
           {/* Row 1: Code and Status */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
@@ -256,7 +256,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
           </div>
 
           {/* Row 2: Name */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 First Name <span className="text-rose-500">*</span>
@@ -286,7 +286,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
           </div>
 
           {/* Row 3: Contact */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Email Address <span className="text-rose-500">*</span>
@@ -313,7 +313,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
           </div>
 
           {/* Row 4: Department & Position */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Department <span className="text-rose-500">*</span>

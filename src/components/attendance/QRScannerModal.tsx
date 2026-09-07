@@ -412,29 +412,29 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-2 sm:p-4 backdrop-blur-xs">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-1.5 sm:p-4 backdrop-blur-xs">
       <div
         ref={modalContainerRef}
         id="qr-scanner-modal"
         className={`flex w-full flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 text-white shadow-2xl transition-all ${isFullscreen
             ? 'fixed inset-0 h-screen w-screen rounded-none max-w-none'
-            : 'max-h-[94vh] max-w-4xl'
+            : 'max-h-[96vh] sm:max-h-[94vh] max-w-4xl'
           }`}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950 px-6 py-4">
-          <div className="flex items-center space-x-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-500/20">
-              <ScanLine className="h-5 w-5" />
+        <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950 px-3 sm:px-6 py-3 sm:py-4">
+          <div className="flex items-center space-x-2.5 sm:space-x-3">
+            <div className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-500/20">
+              <ScanLine className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <h2 className="text-base font-bold text-white">QR Attendance Kiosk Terminal</h2>
-                <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-400 border border-emerald-500/30">
+                <h2 className="text-sm sm:text-base font-bold text-white leading-tight">QR Attendance Terminal</h2>
+                <span className="rounded-full bg-emerald-500/20 px-1.5 sm:px-2 py-0.5 text-[9px] sm:text-[10px] font-bold text-emerald-400 border border-emerald-500/30">
                   LIVE
                 </span>
               </div>
-              <p className="text-xs text-slate-400">
+              <p className="text-[10px] sm:text-xs text-slate-400 hidden sm:block">
                 Official cryptographic check-in & check-out validation system
               </p>
             </div>
@@ -467,14 +467,14 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
         </div>
 
         {/* Scan Mode & Input Selection Bar */}
-        <div className="border-b border-slate-800 bg-slate-900/90 px-6 py-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="border-b border-slate-800 bg-slate-900/90 px-3 sm:px-6 py-2.5 sm:py-3">
+          <div className="flex flex-wrap items-center justify-between gap-2.5">
             {/* Mode selection */}
-            <div className="flex items-center rounded-xl bg-slate-950 p-1 text-xs font-semibold border border-slate-800">
+            <div className="flex items-center rounded-xl bg-slate-950 p-1 text-[11px] sm:text-xs font-semibold border border-slate-800 overflow-x-auto max-w-full">
               <button
                 type="button"
                 onClick={() => setScanMode('auto')}
-                className={`rounded-lg px-3 py-1.5 transition ${scanMode === 'auto'
+                className={`rounded-lg px-2.5 sm:px-3 py-1 sm:py-1.5 transition whitespace-nowrap ${scanMode === 'auto'
                     ? 'bg-indigo-600 text-white shadow-sm font-bold'
                     : 'text-slate-400 hover:text-slate-200'
                   }`}
@@ -484,7 +484,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
               <button
                 type="button"
                 onClick={() => setScanMode('check_in')}
-                className={`rounded-lg px-3 py-1.5 transition ${scanMode === 'check_in'
+                className={`rounded-lg px-2.5 sm:px-3 py-1 sm:py-1.5 transition whitespace-nowrap ${scanMode === 'check_in'
                     ? 'bg-emerald-600 text-white shadow-sm font-bold'
                     : 'text-slate-400 hover:text-slate-200'
                   }`}
@@ -494,7 +494,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
               <button
                 type="button"
                 onClick={() => setScanMode('check_out')}
-                className={`rounded-lg px-3 py-1.5 transition ${scanMode === 'check_out'
+                className={`rounded-lg px-2.5 sm:px-3 py-1 sm:py-1.5 transition whitespace-nowrap ${scanMode === 'check_out'
                     ? 'bg-amber-600 text-white shadow-sm font-bold'
                     : 'text-slate-400 hover:text-slate-200'
                   }`}
@@ -504,11 +504,11 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
             </div>
 
             {/* Input tabs */}
-            <div className="flex items-center space-x-2 text-xs font-semibold">
+            <div className="flex items-center space-x-1.5 sm:space-x-2 text-[11px] sm:text-xs font-semibold overflow-x-auto max-w-full">
               <button
                 type="button"
                 onClick={() => setActiveTab('camera')}
-                className={`flex items-center space-x-1.5 rounded-xl px-3.5 py-1.5 transition ${activeTab === 'camera'
+                className={`flex items-center space-x-1 sm:space-x-1.5 rounded-xl px-2.5 sm:px-3.5 py-1.5 transition whitespace-nowrap ${activeTab === 'camera'
                     ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/50'
                     : 'bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-700'
                   }`}
@@ -520,32 +520,32 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
               <button
                 type="button"
                 onClick={() => setActiveTab('simulate')}
-                className={`flex items-center space-x-1.5 rounded-xl px-3.5 py-1.5 transition ${activeTab === 'simulate'
+                className={`flex items-center space-x-1 sm:space-x-1.5 rounded-xl px-2.5 sm:px-3.5 py-1.5 transition whitespace-nowrap ${activeTab === 'simulate'
                     ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/50'
                     : 'bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-700'
                   }`}
               >
                 <Zap className="h-3.5 w-3.5 text-amber-400" />
-                <span>Quick Test Simulator</span>
+                <span>Simulator</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setActiveTab('upload')}
-                className={`flex items-center space-x-1.5 rounded-xl px-3.5 py-1.5 transition ${activeTab === 'upload'
+                className={`flex items-center space-x-1 sm:space-x-1.5 rounded-xl px-2.5 sm:px-3.5 py-1.5 transition whitespace-nowrap ${activeTab === 'upload'
                     ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/50'
                     : 'bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-700'
                   }`}
               >
                 <Upload className="h-3.5 w-3.5" />
-                <span>Upload QR Image</span>
+                <span>Upload QR</span>
               </button>
             </div>
           </div>
         </div>
 
         {/* Main Content Body */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4 sm:space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* Left Column: Scanner View (7 cols) */}
             <div className="lg:col-span-7 flex flex-col space-y-4">
@@ -615,7 +615,7 @@ export const QRScannerModal: React.FC<QRScannerModalProps> = ({
 
                     {/* Laser scanner target overlay */}
                     <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                      <div className="relative h-60 w-60 rounded-2xl border-2 border-indigo-400/80 shadow-[0_0_30px_rgba(99,102,241,0.5)]">
+                      <div className="relative h-48 w-48 sm:h-60 sm:w-60 rounded-2xl border-2 border-indigo-400/80 shadow-[0_0_30px_rgba(99,102,241,0.5)]">
                         {/* Corner Reticles */}
                         <div className="absolute top-0 left-0 h-4 w-4 border-t-4 border-l-4 border-indigo-400" />
                         <div className="absolute top-0 right-0 h-4 w-4 border-t-4 border-r-4 border-indigo-400" />

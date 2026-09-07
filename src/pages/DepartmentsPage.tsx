@@ -125,7 +125,7 @@ export const DepartmentsPage: React.FC = () => {
     <div className="space-y-6">
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center space-x-2.5 rounded-2xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950 px-4 py-3 text-xs font-semibold text-emerald-900 dark:text-emerald-200 shadow-xl animate-in slide-in-from-bottom-3 duration-200">
+        <div className="fixed bottom-20 md:bottom-6 right-4 sm:right-6 z-50 flex items-center space-x-2.5 rounded-2xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950 px-4 py-3 text-xs font-semibold text-emerald-900 dark:text-emerald-200 shadow-xl animate-in slide-in-from-bottom-3 duration-200">
           <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
           <span>{toastMessage}</span>
         </div>
@@ -355,7 +355,7 @@ export const DepartmentsPage: React.FC = () => {
         /* TABLE VIEW */
         <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shadow-2xs">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full text-left text-xs min-w-[600px]">
               <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 border-b border-slate-200/80 dark:border-slate-800">
                 <tr>
                   <th className="px-4 py-3.5 font-bold">Department ID</th>

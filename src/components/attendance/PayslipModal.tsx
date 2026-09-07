@@ -32,10 +32,10 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
   const net = parseFloat(record.netSalary.toString() || '0');
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-2 sm:p-4 backdrop-blur-xs">
       <div className="flex max-h-[95vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl">
         {/* Header Controls */}
-        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 px-6 py-3.5 print:hidden">
+        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 px-4 sm:px-6 py-3 sm:py-3.5 print:hidden">
           <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
             Official Salary Payslip Statement
           </span>
@@ -57,16 +57,16 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
         </div>
 
         {/* Printable Payslip Body */}
-        <div className="flex-1 overflow-y-auto p-8 space-y-6 bg-white dark:bg-slate-900 print:bg-white text-slate-900 dark:text-white print:text-slate-900" id="printable-payslip">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8 space-y-4 sm:space-y-6 bg-white dark:bg-slate-900 print:bg-white text-slate-900 dark:text-white print:text-slate-900" id="printable-payslip">
           {/* Corporate Letterhead */}
-          <div className="flex items-start justify-between border-b-2 border-slate-800 dark:border-slate-700 pb-5">
+          <div className="flex flex-col sm:flex-row items-start justify-between gap-3 border-b-2 border-slate-800 dark:border-slate-700 pb-4 sm:pb-5">
             <div>
               <ApexLogo size="md" showSubtitle={false} />
               <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 print:text-slate-700 mt-2">Apex Enterprise Solutions (SL) Ltd.</p>
               <p className="text-xs text-slate-500 dark:text-slate-400 print:text-slate-500">15 Siaka Stevens Street, Freetown, Sierra Leone</p>
               <p className="text-[11px] text-slate-400 dark:text-slate-500">Enterprise HRMS & Digital Payroll Division</p>
             </div>
-            <div className="text-right">
+            <div className="text-left sm:text-right">
               <div className="inline-block rounded-md bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 px-2.5 py-1 text-xs font-bold text-indigo-800 dark:text-indigo-300 uppercase tracking-wide">
                 Payslip: {record.payrollPeriod}
               </div>
@@ -81,7 +81,7 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
           </div>
 
           {/* Employee & Period Details */}
-          <div className="grid grid-cols-2 gap-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 print:bg-slate-50 p-4 border border-slate-200 dark:border-slate-700 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 print:bg-slate-50 p-3.5 sm:p-4 border border-slate-200 dark:border-slate-700 text-xs">
             <div>
               <span className="text-slate-500 dark:text-slate-400">Employee Name:</span>
               <p className="font-semibold text-slate-900 dark:text-white print:text-slate-900 text-sm mt-0.5">{record.employeeName}</p>

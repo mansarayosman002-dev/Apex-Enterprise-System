@@ -79,17 +79,17 @@ export const EmployeeDashboardView: React.FC<EmployeeDashboardViewProps> = ({
           </p>
         </div>
 
-        <div className="mt-4 md:mt-0 flex flex-wrap items-center gap-2.5">
+        <div className="mt-4 md:mt-0 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-2.5 w-full md:w-auto">
           <button
             onClick={() => setIsOTModalOpen(true)}
-            className="flex items-center space-x-1.5 rounded-xl border border-indigo-400/40 bg-indigo-500/20 px-3.5 py-2 text-xs font-semibold text-white hover:bg-indigo-500/30 transition shadow-xs"
+            className="flex items-center justify-center space-x-1.5 rounded-xl border border-indigo-400/40 bg-indigo-500/20 px-3.5 py-2 text-xs font-semibold text-white hover:bg-indigo-500/30 transition shadow-xs"
           >
             <Plus className="h-4 w-4 text-indigo-300" />
             <span>Submit Overtime Claim</span>
           </button>
           <button
             onClick={onOpenScanner}
-            className="flex items-center space-x-2 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-md hover:bg-indigo-500 transition"
+            className="flex items-center justify-center space-x-2 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-md hover:bg-indigo-500 transition"
           >
             <ScanLine className="h-4 w-4" />
             <span>Scan Terminal to Punch In</span>
@@ -98,7 +98,7 @@ export const EmployeeDashboardView: React.FC<EmployeeDashboardViewProps> = ({
       </div>
 
       {/* 2. Key Employee Status Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* Attendance Status */}
         <StatCard
           title="Today's Attendance Status"
@@ -240,7 +240,7 @@ export const EmployeeDashboardView: React.FC<EmployeeDashboardViewProps> = ({
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
+                <table className="w-full text-left text-xs min-w-[500px]">
                   <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
                     <tr>
                       <th className="px-3.5 py-2.5 font-semibold">Date</th>

@@ -357,7 +357,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+              <table className="w-full text-left text-xs min-w-[550px]">
                 <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
                   <tr>
                     <th className="px-3.5 py-2.5 font-semibold">Employee</th>

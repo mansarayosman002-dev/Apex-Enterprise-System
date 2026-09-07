@@ -15,6 +15,7 @@ import { UsersPage } from './pages/UsersPage.tsx';
 import { SettingsPage } from './pages/SettingsPage.tsx';
 import { ProfilePage } from './pages/ProfilePage.tsx';
 import { QRScannerModal } from './components/attendance/QRScannerModal.tsx';
+import { MobileBottomNav } from './components/layout/MobileBottomNav.tsx';
 import { RefreshCw, ShieldAlert, ArrowLeft } from 'lucide-react';
 
 const PAGE_PERMISSIONS: Record<string, string[]> = {
@@ -141,10 +142,18 @@ const MainLayout: React.FC = () => {
           onCloseMobile={() => setIsMobileSidebarOpen(false)}
         />
 
-        <main className="flex-1 overflow-y-auto p-6 md:p-8" key={refreshKey}>
+        <main className="flex-1 overflow-y-auto p-3.5 sm:p-5 md:p-8 pb-24 md:pb-8" key={refreshKey}>
           <div className="max-w-7xl mx-auto">{renderActivePage()}</div>
         </main>
       </div>
+
+      {/* Mobile Bottom Navigation Bar */}
+      <MobileBottomNav
+        activePage={activePage}
+        setActivePage={setActivePage}
+        onOpenScanner={() => setIsScannerOpen(true)}
+        onOpenMenu={() => setIsMobileSidebarOpen(true)}
+      />
 
       {/* Global QR Attendance Scanner Terminal Modal */}
       <QRScannerModal

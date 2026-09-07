@@ -192,11 +192,11 @@ export const SettingsPage: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex justify-end">
+        <div className="flex flex-col sm:flex-row justify-end">
           <button
             type="submit"
             disabled={isSaving}
-            className="flex items-center space-x-2 rounded-xl bg-indigo-600 px-6 py-2.5 text-xs font-semibold text-white shadow-xs hover:bg-indigo-700 transition disabled:opacity-50"
+            className="w-full sm:w-auto flex items-center justify-center space-x-2 rounded-xl bg-indigo-600 px-6 py-3 text-xs font-semibold text-white shadow-xs hover:bg-indigo-700 transition disabled:opacity-50"
           >
             {isSaving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             <span>Save System Policies</span>
