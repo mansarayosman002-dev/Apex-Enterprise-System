@@ -12,20 +12,56 @@ import {
   AlignmentType,
   ShadingType,
   Footer,
+  Header,
   PageNumber,
 } from 'docx';
 import * as fs from 'fs';
 import * as path from 'path';
 
-function createHeading1(text: string): Paragraph {
+function createTitle(text: string): Paragraph {
   return new Paragraph({
-    heading: HeadingLevel.HEADING_1,
-    spacing: { before: 360, after: 140 },
+    alignment: AlignmentType.CENTER,
+    spacing: { before: 200, after: 120 },
     children: [
       new TextRun({
         text,
         bold: true,
-        size: 26,
+        size: 30, // 15pt
+        color: '0F172A', // Dark Slate
+        font: 'Arial',
+      }),
+    ],
+  });
+}
+
+function createSubtitle(text: string): Paragraph {
+  return new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { after: 180 },
+    children: [
+      new TextRun({
+        text,
+        italics: true,
+        size: 21, // 10.5pt
+        color: '2563EB', // Royal Blue
+        font: 'Arial',
+      }),
+    ],
+  });
+}
+
+function createHeading1(text: string): Paragraph {
+  return new Paragraph({
+    heading: HeadingLevel.HEADING_1,
+    spacing: { before: 380, after: 140 },
+    border: {
+      bottom: { style: BorderStyle.SINGLE, size: 10, color: '1E3A8A' },
+    },
+    children: [
+      new TextRun({
+        text,
+        bold: true,
+        size: 26, // 13pt
         color: '1E3A8A', // Deep Navy Blue
         font: 'Arial',
       }),
@@ -41,7 +77,7 @@ function createHeading2(text: string): Paragraph {
       new TextRun({
         text,
         bold: true,
-        size: 22,
+        size: 22, // 11pt
         color: '2563EB', // Royal Accent Blue
         font: 'Arial',
       }),
@@ -57,8 +93,8 @@ function createHeading3(text: string): Paragraph {
       new TextRun({
         text,
         bold: true,
-        size: 20,
-        color: '0F172A', // Dark Slate
+        size: 20, // 10pt
+        color: '0F172A',
         font: 'Arial',
       }),
     ],
@@ -74,7 +110,7 @@ function createBodyParagraph(text: string, options: { bold?: boolean; italics?: 
         bold: options.bold,
         italics: options.italics,
         color: options.color || '334155',
-        size: 20,
+        size: 20, // 10pt
         font: 'Arial',
       }),
     ],
@@ -94,11 +130,11 @@ function createBulletPoint(text: string, boldPrefix: string = ''): Paragraph {
   });
 }
 
-function createCalloutBox(title: string, text: string): Paragraph {
+function createCalloutBox(title: string, text: string, borderColor: string = '2563EB'): Paragraph {
   return new Paragraph({
     spacing: { before: 140, after: 160 },
     border: {
-      left: { style: BorderStyle.SINGLE, size: 24, color: '2563EB' },
+      left: { style: BorderStyle.SINGLE, size: 24, color: borderColor },
     },
     shading: {
       type: ShadingType.CLEAR,
@@ -107,7 +143,7 @@ function createCalloutBox(title: string, text: string): Paragraph {
     indent: { left: 240, right: 240 },
     children: [
       new TextRun({ text: title + '\n', bold: true, color: '1E3A8A', size: 20, font: 'Arial' }),
-      new TextRun({ text, italics: true, color: '475569', size: 19, font: 'Arial' }),
+      new TextRun({ text, italics: false, color: '334155', size: 19, font: 'Arial' }),
     ],
   });
 }
@@ -130,7 +166,7 @@ function createCodeBlock(codeText: string): Paragraph {
       new TextRun({
         text: codeText,
         font: 'Consolas',
-        size: 17,
+        size: 16, // 8pt
         color: '0F172A',
       }),
     ],
@@ -157,7 +193,7 @@ function createStyledTable(headers: string[], rows: string[][], colWidths: numbe
                   text: headerText,
                   bold: true,
                   color: 'FFFFFF',
-                  size: 19,
+                  size: 18,
                   font: 'Arial',
                 }),
               ],
@@ -177,7 +213,7 @@ function createStyledTable(headers: string[], rows: string[][], colWidths: numbe
           new TableCell({
             width: { size: colWidths[i], type: WidthType.DXA },
             shading: { type: ShadingType.CLEAR, fill: isEven ? 'F8FAFC' : 'FFFFFF' },
-            margins: { top: 100, bottom: 100, left: 140, right: 140 },
+            margins: { top: 90, bottom: 90, left: 140, right: 140 },
             borders: {
               top: { style: BorderStyle.SINGLE, size: 4, color: 'E2E8F0' },
               bottom: { style: BorderStyle.SINGLE, size: 4, color: 'E2E8F0' },
@@ -191,7 +227,7 @@ function createStyledTable(headers: string[], rows: string[][], colWidths: numbe
                   new TextRun({
                     text: cellText,
                     color: '334155',
-                    size: 18,
+                    size: 17,
                     font: 'Arial',
                   }),
                 ],
@@ -217,8 +253,26 @@ async function buildDocx(): Promise<void> {
       {
         properties: {
           page: {
-            margin: { top: 1440, bottom: 1440, left: 1440, right: 1440 }, // 1 inch
+            margin: { top: 1440, bottom: 1440, left: 1440, right: 1440 }, // 1 inch margins
           },
+        },
+        headers: {
+          default: new Header({
+            children: [
+              new Paragraph({
+                alignment: AlignmentType.RIGHT,
+                spacing: { after: 120 },
+                children: [
+                  new TextRun({
+                    text: 'Smart Employee Attendance & Payroll Management System | Dissertation Technical Report',
+                    size: 16,
+                    color: '94A3B8',
+                    font: 'Arial',
+                  }),
+                ],
+              }),
+            ],
+          }),
         },
         footers: {
           default: new Footer({
@@ -226,23 +280,23 @@ async function buildDocx(): Promise<void> {
               new Paragraph({
                 alignment: AlignmentType.RIGHT,
                 children: [
-                  new TextRun({ text: 'Apex HRMS Dissertation Documentation | Page ', size: 18, color: '94A3B8', font: 'Arial' }),
-                  new TextRun({ children: [PageNumber.CURRENT], size: 18, bold: true, color: '64748B', font: 'Arial' }),
-                  new TextRun({ text: ' of ', size: 18, color: '94A3B8', font: 'Arial' }),
-                  new TextRun({ children: [PageNumber.TOTAL_PAGES], size: 18, bold: true, color: '64748B', font: 'Arial' }),
+                  new TextRun({ text: 'Author: OSMAN A MANSARAY | Page ', size: 17, color: '94A3B8', font: 'Arial' }),
+                  new TextRun({ children: [PageNumber.CURRENT], size: 17, bold: true, color: '64748B', font: 'Arial' }),
+                  new TextRun({ text: ' of ', size: 17, color: '94A3B8', font: 'Arial' }),
+                  new TextRun({ children: [PageNumber.TOTAL_PAGES], size: 17, bold: true, color: '64748B', font: 'Arial' }),
                 ],
               }),
             ],
           }),
         },
         children: [
-          // Title Cover Header
+          // Institutional Banner
           new Paragraph({
             alignment: AlignmentType.CENTER,
-            spacing: { after: 120 },
+            spacing: { after: 100 },
             children: [
               new TextRun({
-                text: 'FINAL YEAR DISSERTATION TECHNICAL SPECIFICATION',
+                text: 'FINAL YEAR DISSERTATION TECHNICAL SPECIFICATION & COMPENDIUM',
                 bold: true,
                 size: 20,
                 color: '1E3A8A',
@@ -250,70 +304,65 @@ async function buildDocx(): Promise<void> {
               }),
             ],
           }),
+
+          createTitle('Smart Employee Attendance & Payroll Management System'),
+          createSubtitle('Apex AI Assistant, Multi-Channel Notifications, 38 PostgreSQL Database Constraints, and Mobile Responsive PWA Architecture'),
+
+          // Author & Metadata Box
           new Paragraph({
             alignment: AlignmentType.CENTER,
-            spacing: { after: 180 },
+            spacing: { after: 260 },
             children: [
               new TextRun({
-                text: 'Smart Employee Attendance & Payroll Management System',
-                bold: true,
-                size: 32,
-                color: '0F172A',
-                font: 'Arial',
-              }),
-            ],
-          }),
-          new Paragraph({
-            alignment: AlignmentType.CENTER,
-            spacing: { after: 100 },
-            children: [
-              new TextRun({
-                text: 'Technical Documentation: AI Assistant, Multi-Channel Notifications, 38 PostgreSQL CHECK Constraints, and Mobile Responsive PWA Architecture',
-                bold: false,
-                italics: true,
-                size: 21,
-                color: '2563EB',
-                font: 'Arial',
-              }),
-            ],
-          }),
-          new Paragraph({
-            alignment: AlignmentType.CENTER,
-            spacing: { after: 320 },
-            children: [
-              new TextRun({
-                text: 'Author: OSMAN A MANSARAY | Academic Year: 2025/2026 | Enterprise Version 2.4.0',
+                text: 'Candidate: OSMAN A MANSARAY  |  Academic Year: 2025/2026  |  System Version: 2.4.0 Enterprise',
                 bold: true,
                 size: 18,
-                color: '64748B',
+                color: '475569',
                 font: 'Arial',
               }),
             ],
           }),
 
-          // Accent Divider
+          // Accent Divider Rule
           new Paragraph({
-            spacing: { after: 280 },
+            spacing: { after: 260 },
             border: {
-              bottom: { style: BorderStyle.SINGLE, size: 18, color: '1E3A8A' },
+              bottom: { style: BorderStyle.SINGLE, size: 16, color: '1E3A8A' },
             },
             children: [],
           }),
 
-          // Section 1: Executive Summary
+          // TABLE OF CONTENTS SUMMARY
+          createHeading2('Document Organization & Dissertation Chapter Mapping'),
+          createStyledTable(
+            ['Chapter Reference', 'Subsystem Documented', 'Key Technical Focus Areas'],
+            [
+              ['Executive Summary', 'System Scope & Context', 'Enterprise problem formulation, manual payroll risks, research objectives'],
+              ['Chapter 3 Addition', 'System Architecture & Design', 'Multi-tier topology, 5-tier RBAC matrix, JWT token security, zero-trust IDOR defense'],
+              ['Chapter 4.1 Addition', 'Apex AI Copilot & Engine', 'Tri-provider fallback cascade, 12 sandboxed tools, RAG Sierra Leone NASSIT/PAYE, 10 automations'],
+              ['Chapter 4.2 Addition', 'Enterprise Notifications', 'Multi-channel dispatch (In-App, Email, WA, SMS), priority queue, exponential backoff, salary privacy'],
+              ['Chapter 4.3 Addition', 'Multi-Layer Validation', 'Dual-tier defense, 38 PostgreSQL CHECK constraints, service interception, 100% database audit'],
+              ['Chapter 4.4 Addition', 'Mobile Usability & PWA', 'Fluid responsive layout, slide-out drawer nav, WCAG 2.1 44px targets, table-to-card transformation'],
+              ['Chapter 4.5 Addition', 'QR Attendance & Geofencing', 'Dynamic HMAC-SHA256 QR tokens, spherical Haversine geofencing math, offline batch sync'],
+              ['Chapter 5 Addition', 'QA, Testing & Defense Guide', '221 automated tests (100% pass), latency benchmarks, OWASP Top 10 audit, Viva Q&A defense'],
+            ],
+            [2200, 2600, 4560]
+          ),
+
+          // 1. EXECUTIVE SUMMARY & RESEARCH SCOPE
           createHeading1('1. Executive Summary & Research Scope'),
           createBodyParagraph(
             'Modern corporate human resource management demands real-time data integrity, automated compliance enforcement, fluid cross-device accessibility, and intelligent decision-support capabilities. Traditional enterprise HR and payroll management systems frequently suffer from data corruption due to unconstrained database inputs, proxy attendance fraud ("buddy punching"), complex manual payroll computations prone to human error, and fragmented communication channels.'
           ),
           createBodyParagraph(
-            'This technical document details the engineering specifications, algorithmic formulations, and empirical testing of the major advanced subsystems integrated into the Apex Smart Employee Attendance & Payroll Management System. These subsystems encompass: (1) Apex AI Copilot with multi-LLM fallback and 12 sandboxed tools, (2) Sierra Leone statutory compliance (NASSIT & PAYE tax bands), (3) Enterprise multi-channel queued notifications, (4) 38 PostgreSQL CHECK constraints with application-layer interception, (5) Mobile responsive UI architecture with touch-optimized controls, and (6) Dynamic QR attendance with Haversine geofencing.'
+            'This dissertation technical document details the engineering design, algorithmic formulations, security frameworks, and empirical evaluation of the advanced subsystems integrated into the Apex Smart Employee Attendance & Payroll Management System. Developed as an enterprise-grade academic project, the system combines cutting-edge web technologies—React 19, TypeScript, Node.js Express, Drizzle ORM, and PostgreSQL 18—with an intelligent artificial intelligence orchestration layer.'
           ),
 
-          // Section 2: System Architecture
+          // 2. SYSTEM ARCHITECTURE & INTEGRATED DESIGN
           createHeading1('2. System Architecture & Integrated Design (Chapter 3)'),
-          createHeading2('2.1 Multi-Tier Architectural Topology'),
+          createHeading2('2.1 Multi-Tier Decoupled Topology'),
           createBodyParagraph(
-            'The system adopts a modern multi-tier decoupled client-server architecture. The presentation tier is built as a single-page application (SPA) using React 19, Tailwind CSS 4, Motion animations, and Lucide enterprise icons. The application services tier is powered by a Node.js 22 LTS Express REST API written in strict TypeScript. Persistence is managed through a relational PostgreSQL 18 database interfaced via Drizzle ORM.'
+            'The system follows a multi-tier decoupled architectural topology ensuring high maintainability, testability, and horizontal scalability. Presentation is delivered through an interactive Single Page Application (SPA) powered by React 19, Tailwind CSS 4, and Motion micro-interactions. The backend is orchestrated via a RESTful API built on Node.js 22 LTS with strict TypeScript compilation. Persistence is handled by an enterprise PostgreSQL 18 relational engine.'
           ),
           createCodeBlock(
             '┌─────────────────────────────────────────────────────────────┐\n' +
@@ -335,48 +384,45 @@ async function buildDocx(): Promise<void> {
             '└──────────────────────────────┘ └────────────────────────────┘'
           ),
 
-          createHeading2('2.2 Role-Based Access Control (RBAC) Matrix'),
+          createHeading2('2.2 Role-Based Access Control (RBAC) Privilege Matrix'),
           createBodyParagraph(
-            'The system enforces strict zero-trust Role-Based Access Control across five organizational tiers:'
+            'The platform enforces a strict zero-trust principle across five designated corporate tiers:'
           ),
           createStyledTable(
             ['System Module / Action', 'Admin', 'HR Officer', 'Payroll Officer', 'Manager', 'Employee'],
             [
               ['User Account Provisioning', 'Full CRUD', 'View Only', 'None', 'None', 'None'],
-              ['Employee Records Management', 'Full CRUD', 'Full CRUD', 'View Only', 'Dept View', 'Self Profile'],
-              ['Attendance Punch & QR Scanner', 'Hardware/Test', 'View All', 'View All', 'Dept View', 'Self Punch'],
-              ['Leave Application Approvals', 'Final Override', 'Approve/Reject', 'View Approved', 'Endorse', 'Apply/View'],
-              ['Overtime Verification & Rates', 'Full Admin', 'Review Hours', 'Compute Pay', 'Dept Endorse', 'View Own'],
-              ['Payroll Computation & Payouts', 'Approve/Lock', 'View Summary', 'Full Compute', 'Dept Total', 'View Payslip'],
+              ['Employee Profiles & Onboarding', 'Full CRUD', 'Full CRUD', 'View Only', 'Dept View', 'Self Profile'],
+              ['Shift & Dept Configuration', 'Full CRUD', 'Full CRUD', 'None', 'Assigned View', 'Assigned View'],
+              ['Attendance Punching & Scanner', 'Hardware/Test', 'View All', 'View All', 'Dept View', 'Self QR Scan'],
+              ['Leave Requests & Entitlements', 'Final Override', 'Approve/Reject', 'View Approved', 'Endorse', 'Apply/View'],
+              ['Overtime Reviews & Approvals', 'Full Admin', 'Review Hours', 'Compute Payout', 'Dept Endorse', 'View Own'],
+              ['Payroll Generation & Lockdown', 'Approve/Lock', 'View Summary', 'Full Compute', 'Dept Total', 'View Payslip'],
               ['Multi-Channel Notifications', 'System-Wide', 'Dept/Staff', 'Payslip Slips', 'Team Alerts', 'Inbox View'],
               ['AI Copilot: Analytics Queries', 'Full Scope', 'Staff/Leaves', 'Compensation', 'Dept Summary', 'Personal Only'],
-              ['System Configuration & Audits', 'Full Control', 'None', 'None', 'None', 'None'],
+              ['Audit Logs & System Settings', 'Full Control', 'None', 'None', 'None', 'None'],
             ],
             [3000, 1272, 1272, 1272, 1272, 1272]
           ),
 
-          // Section 3: Apex AI Assistant
+          createHeading2('2.3 Authentication, Token Lifecycle & IDOR Defense'),
+          createBodyParagraph(
+            'Security credentials and API operations adhere to RFC 7519 JSON Web Token standards and defensive engineering principles:'
+          ),
+          createBulletPoint('Bcrypt Password Hashing: User passwords are stored as cryptographic hashes generated with a salt work factor of 10 rounds, mitigating rainbow table attacks.', '1. Credential Security:'),
+          createBulletPoint('Cryptographic Signing: Tokens are signed with a 256-bit secret key using HMAC-SHA256 (HS256) and transmitted via HTTP Bearer headers.', '2. Token Signing:'),
+          createBulletPoint('Insecure Direct Object Reference (IDOR) Defense: Personal endpoints (such as retrieving payslips or attendance punch history) extract the employee identifier strictly from the authenticated JWT claims rather than trusting client-supplied URL parameters.', '3. IDOR Prevention:'),
+
+          // 3. APEX AI ASSISTANT
           createHeading1('3. Apex AI HR & Payroll Assistant (Chapter 4.1)'),
           createHeading2('3.1 Tri-Provider Fallback Cascade Architecture'),
           createBodyParagraph(
-            'To guarantee high availability even in environments with unpredictable external network connectivity, the AI subsystem incorporates an autonomous tri-provider fallback cascade:'
+            'To maintain continuous operational availability during external API downtime, network outages, or rate limits, the AI engine implements a cascading tri-provider orchestration model:'
           ),
-          createBulletPoint(
-            'Primary Provider: Google Gemini 2.5 Flash, providing rapid tool-use execution, high-accuracy argument extraction, and sub-second reasoning.',
-            '1.'
-          ),
-          createBulletPoint(
-            'Secondary Provider: Groq LLaMA 3.3 70B, serving as an ultra-low-latency open-weights backup executing on custom LPU silicon.',
-            '2.'
-          ),
-          createBulletPoint(
-            'Tertiary Provider: OpenAI GPT-4o-mini, providing high-reliability enterprise reasoning.',
-            '3.'
-          ),
-          createBulletPoint(
-            'Deterministic Air-Gapped Local Fallback: If internet connectivity is entirely lost, a local regex-driven rule engine directly queries database functions to generate tabular reports, ensuring zero operational downtime.',
-            '4.'
-          ),
+          createBulletPoint('Primary Provider (Google Gemini 2.5 Flash): High-speed tool execution model providing structured argument extraction and sub-second natural language reasoning.', '• Tier 1:'),
+          createBulletPoint('Secondary Provider (Groq LLaMA 3.3 70B): Ultra-low latency open-weights inference engine executing on custom LPU hardware, activated when Gemini encounters quota constraints.', '• Tier 2:'),
+          createBulletPoint('Tertiary Provider (OpenAI GPT-4o-mini): Resilient enterprise fallback model.', '• Tier 3:'),
+          createBulletPoint('Air-Gapped Deterministic Local Fallback: When internet connectivity is completely lost, a local regex-driven rule engine directly queries database functions to generate tabular reports, ensuring zero operational downtime.', '• Tier 4:'),
 
           createHeading2('3.2 Function Calling & 12 Sandboxed Enterprise Tools'),
           createBodyParagraph(
@@ -401,14 +447,14 @@ async function buildDocx(): Promise<void> {
             [2600, 1600, 5160]
           ),
 
-          createHeading2('3.3 Sierra Leone Regulatory Compliance (NASSIT & PAYE)'),
+          createHeading2('3.3 Sierra Leone Regulatory Compliance: NASSIT & PAYE Tax Bands'),
           createBodyParagraph(
             'The AI and payroll computation engines implement the statutory labor and tax codes of Sierra Leone:'
           ),
           createCalloutBox(
             'National Social Security & Insurance Trust (NASSIT Act 2001):',
             '• Employee Contribution: 5% deducted from Gross Basic Wage.\n' +
-            '• Employer Contribution: 10% contributed by organization.\n' +
+            '• Employer Contribution: 10% contributed by the employer.\n' +
             '• Total Statutory Remittance: 15% remitted monthly to the NASSIT trust.'
           ),
           createCalloutBox(
@@ -420,7 +466,19 @@ async function buildDocx(): Promise<void> {
             '• Excess above NLe 2,400.00: 30%'
           ),
 
-          createHeading2('3.4 Autonomous Scheduled Automations (10 Templates)'),
+          createHeading2('3.4 Overtime Multipliers & Mathematical Compensation Equations'),
+          createBodyParagraph(
+            'Hourly rate and overtime compensation formulas comply with national labor regulations:'
+          ),
+          createCodeBlock(
+            'Hourly Base Rate = Basic Salary / (22 Standard Days * 8 Hours) = Basic Salary / 176\n' +
+            'Overtime Payout  = (Regular OT Hours * Hourly Rate * 1.5) + (Sunday/Holiday OT * Hourly Rate * 2.0)\n' +
+            'Gross Earnings   = Basic Salary + Overtime Payout + Allowances\n' +
+            'Total Deductions = NASSIT (5%) + PAYE Progressive Tax + Advance Repayments\n' +
+            'Net Take-Home    = Gross Earnings - Total Deductions'
+          ),
+
+          createHeading2('3.5 Autonomous Scheduled Automations (10 Templates)'),
           createBodyParagraph(
             'The AI engine features an autonomous background scheduler executing 10 pre-configured organizational automations:'
           ),
@@ -441,28 +499,27 @@ async function buildDocx(): Promise<void> {
             [600, 2800, 1800, 4160]
           ),
 
-          // Section 4: Notifications Subsystem
+          // 4. MULTI-CHANNEL NOTIFICATIONS
           createHeading1('4. Enterprise Multi-Channel Notifications (Chapter 4.2)'),
-          createHeading2('4.1 Multi-Channel Dispatch & Priority Queue'),
+          createHeading2('4.1 Multi-Channel Dispatch Architecture'),
           createBodyParagraph(
             'The notification subsystem orchestrates communications across four distinct delivery vectors: (1) In-App Notification Center with live unread badge, (2) Responsive HTML Email via SMTP, (3) WhatsApp Business messaging via Cloud API webhooks, and (4) SMS cellular broadcast for remote field personnel.'
           ),
           createBodyParagraph(
-            'To maintain system throughput during high-volume events (such as simultaneous monthly payroll disbursements), an asynchronous priority queue with exponential backoff was implemented. The retry schedule is governed by: T_wait = min(T_base * 2^attempt + jitter, T_max), preventing API throttling and thread starvation.'
+            'To maintain system throughput during high-volume events (such as simultaneous monthly payroll disbursements), an asynchronous priority queue with exponential backoff was implemented. The retry schedule is governed by the following mathematical formula:'
+          ),
+          createCalloutBox(
+            'Exponential Backoff with Random Jitter Equation:',
+            'T_wait = min(T_base * 2^attempt + jitter, T_max)\n' +
+            'where T_base = 2.0s, T_max = 300.0s, and jitter in [0, 1.0s] prevents thundering herd API contention.'
           ),
           createHeading2('4.2 Salary Privacy Shielding & Delivery Auditing'),
-          createBulletPoint(
-            'Salary Data Redaction: Bank account numbers are masked showing only the terminal 4 digits (••••••••1234). Gross pay is excluded from subject lines to prevent visual snooping on smartphone lock screens.',
-            '• Privacy:'
-          ),
-          createBulletPoint(
-            'Delivery Audit Trail: Every dispatch registers a persistent UUIDv4 tracking log recording state transitions: QUEUED → PROCESSING → SENT → DELIVERED → READ.',
-            '• Audit:'
-          ),
+          createBulletPoint('Salary Data Redaction: Bank account numbers are masked showing only the terminal 4 digits (••••••••1234). Gross pay is excluded from subject lines to prevent visual snooping on smartphone lock screens.', '• Privacy:'),
+          createBulletPoint('Delivery Audit Trail: Every dispatch registers a persistent UUIDv4 tracking log recording state transitions: QUEUED → PROCESSING → SENT → DELIVERED → READ.', '• Audit:'),
 
-          // Section 5: Data Validation
+          // 5. DATA VALIDATION & 38 POSTGRESQL CONSTRAINTS
           createHeading1('5. Multi-Layer Data Validation & 38 PostgreSQL Constraints (Chapter 4.3)'),
-          createHeading2('5.1 Defense-in-Depth Validation Philosophy'),
+          createHeading2('5.1 Dual-Tier Defense-in-Depth Philosophy'),
           createBodyParagraph(
             'To ensure uncompromised data integrity, the system implements a dual-tier validation strategy: (1) Application Service Layer validation in TypeScript returning human-readable HTTP 400 Bad Request responses, and (2) 38 native PostgreSQL CHECK constraints enforcing mathematical and logical invariants at the disk storage level.'
           ),
@@ -481,37 +538,33 @@ async function buildDocx(): Promise<void> {
             ],
             [2000, 2200, 5160]
           ),
+          createHeading2('5.2 PostgreSQL CHECK Constraint SQL Excerpts'),
+          createCodeBlock(
+            '-- Sample Relational CHECK Constraints from Production Engine:\n' +
+            'ALTER TABLE employees ADD CONSTRAINT chk_emp_salary_positive CHECK (salary > 0);\n' +
+            'ALTER TABLE employees ADD CONSTRAINT chk_emp_email_format CHECK (email ~* \'^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$\');\n' +
+            'ALTER TABLE attendance ADD CONSTRAINT chk_att_checkout_after_checkin CHECK (check_out IS NULL OR check_out >= check_in);\n' +
+            'ALTER TABLE payroll ADD CONSTRAINT chk_pay_gross_salary_valid CHECK (gross_salary >= basic_salary);\n' +
+            'ALTER TABLE payroll ADD CONSTRAINT chk_pay_net_salary_non_negative CHECK (net_salary >= 0);\n' +
+            'ALTER TABLE leaves ADD CONSTRAINT chk_leave_dates_valid CHECK (end_date >= start_date);\n' +
+            'ALTER TABLE overtime ADD CONSTRAINT chk_ot_hours_positive CHECK (hours > 0 AND hours <= 16);'
+          ),
           createBodyParagraph(
             'Empirical Database Audit: Executing scripts/run_database_audit.ts on the production database confirmed 100% compliance across all 1,428 historical records with zero constraint violations.'
           ),
 
-          // Section 6: Mobile Responsiveness
+          // 6. MOBILE RESPONSIVENESS
           createHeading1('6. Mobile Responsiveness & Progressive Usability (Chapter 4.4)'),
           createBodyParagraph(
-            'To ensure seamless usability across all form factors, the interface was modernized with fluid CSS grid layouts and mobile drawer navigation:'
+            'To support diverse workplace environments—including desktop workstations, tablets, and smartphones used by field staff—the user interface was engineered for full responsiveness:'
           ),
-          createBulletPoint(
-            'Viewport Optimization: Tailored breakpoints for mobile phones (<=768px), tablets (769px-1024px), and desktop workstations (>=1025px).',
-            '• Breakpoints:'
-          ),
-          createBulletPoint(
-            'Mobile Navigation Drawer: Off-canvas sliding menu with backdrop filter blur, controlled via an accessible hamburger button.',
-            '• Navigation:'
-          ),
-          createBulletPoint(
-            'WCAG 2.1 Touch Targets: All interactive buttons and inputs adhere to the minimum 44x44px accessible touch dimension.',
-            '• Accessibility:'
-          ),
-          createBulletPoint(
-            'Adaptive Table Transformation: Desktop tabular views automatically transform into compact stacked card layouts on small screens.',
-            '• Responsive Tables:'
-          ),
-          createBulletPoint(
-            'PWA & Mobile Camera Scanner: Integrated html5-qrcode library accesses native smartphone cameras for real-time badge scanning.',
-            '• Scanning:'
-          ),
+          createBulletPoint('Viewport Optimization: Tailored breakpoints for mobile phones (<=768px), tablets (769px-1024px), and desktop workstations (>=1025px).', '• Breakpoints:'),
+          createBulletPoint('Mobile Navigation Drawer: Off-canvas sliding menu with backdrop filter blur, controlled via an accessible hamburger button in Navbar.tsx.', '• Navigation:'),
+          createBulletPoint('WCAG 2.1 Touch Targets: All interactive buttons and inputs adhere to the minimum 44x44px accessible touch dimension.', '• Accessibility:'),
+          createBulletPoint('Adaptive Table Transformation: Desktop tabular views automatically transform into compact stacked card layouts on small screens via CSS media queries.', '• Responsive Tables:'),
+          createBulletPoint('PWA & Mobile Camera Scanner: Integrated html5-qrcode library accesses native smartphone cameras for real-time badge scanning.', '• Scanning:'),
 
-          // Section 7: QR Attendance & Geofencing
+          // 7. QR CODE & GEOFENCING
           createHeading1('7. Smart QR Attendance & Haversine Geofencing (Chapter 4.5)'),
           createBodyParagraph(
             'Attendance authentication prevents proxy punch fraud through a combination of cryptographic token generation and spherical GPS geofencing:'
@@ -529,9 +582,9 @@ async function buildDocx(): Promise<void> {
             'If calculated distance d > 100 meters, check-in is rejected or flagged as out-of-bounds.'
           ),
 
-          // Section 8: Quality Assurance & Defense
+          // 8. EMPIRICAL EVALUATION & DEFENSE GUIDE
           createHeading1('8. Empirical QA Evaluation & Academic Defense Guide (Chapter 5)'),
-          createHeading2('8.1 Automated Test Execution Results (221 Tests)'),
+          createHeading2('8.1 Automated Test Execution Results (221 Tests Across 12 Suites)'),
           createBodyParagraph(
             'The system was subjected to an exhaustive automated test battery across 12 test suites:'
           ),
@@ -572,18 +625,26 @@ async function buildDocx(): Promise<void> {
             'Q4: How does the system prevent attendance fraud such as proxy scanning?',
             'Answer: We utilize a dual-layer defense: (1) Dynamic cryptographic QR codes with time-bound HMAC-SHA256 signatures that expire periodically, and (2) Haversine geofencing that verifies employee GPS coordinates within a 100-meter workplace boundary.'
           ),
-
-          // Conclusion
-          createHeading1('9. Conclusion & Research Contributions'),
-          createBodyParagraph(
-            'The additions to the Apex Smart Employee Attendance & Payroll Management System transform traditional human resource software into an intelligent, secure, and resilient enterprise platform. By unifying modern multi-LLM artificial intelligence, strict Sierra Leone statutory compliance, multi-channel queued notifications, 38 PostgreSQL database constraints, mobile responsiveness, and dynamic QR anti-proxy verification, this project delivers a robust solution suitable for modern enterprise environments.'
+          createCalloutBox(
+            'Q5: How does the priority notification queue guarantee reliable delivery?',
+            'Answer: The asynchronous queue assigns priority tiers (Critical, High, Normal, Low) and dispatches tasks sequentially. Failures trigger exponential backoff retries with randomized jitter across five attempts, after which failed messages are logged into a dead-letter repository without stalling the main thread.'
           ),
+
+          // 9. CONCLUSION & FUTURE WORK
+          createHeading1('9. Conclusion & Future Research Directions'),
+          createBodyParagraph(
+            'The integrated subsystems documented in this report elevate the Apex Smart Employee Attendance & Payroll Management System from a standard recording tool to an intelligent, automated, and secure enterprise HR platform. By combining multi-provider LLM orchestration, Sierra Leone statutory compliance, multi-channel queued notifications, 38 PostgreSQL database constraints, mobile responsiveness, and dynamic QR anti-proxy verification, this project delivers a robust solution suitable for modern enterprise environments.'
+          ),
+          createBodyParagraph(
+            'Future extensions planned for the system include on-device WebAssembly facial biometric verification, predictive employee attrition modeling, and direct integration with Sierra Leone commercial banking switches for automated salary disbursements.'
+          ),
+
           new Paragraph({
             alignment: AlignmentType.CENTER,
-            spacing: { before: 300, after: 100 },
+            spacing: { before: 360, after: 120 },
             children: [
               new TextRun({
-                text: 'End of Dissertation Technical Documentation',
+                text: 'End of Technical Dissertation Documentation',
                 bold: true,
                 size: 20,
                 color: '1E3A8A',
