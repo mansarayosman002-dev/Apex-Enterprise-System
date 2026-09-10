@@ -5,7 +5,6 @@ import { Department, Employee, AttendanceRecord, PayrollRecord } from '../types/
 import {
   Calendar,
   DollarSign,
-  Printer,
   Download,
   Filter,
   Search,
@@ -28,7 +27,9 @@ import {
   AlertCircle,
   Eye,
   CheckCircle2,
+  FileText,
 } from 'lucide-react';
+import { exportTableToCsv, exportTableToPdf } from '../utils/exportDocument.ts';
 
 type SortDirection = 'asc' | 'desc' | null;
 
@@ -367,81 +368,153 @@ export const ReportsPage: React.FC = () => {
   // Export Attendance CSV
   const exportAttendanceCSV = () => {
     if (!processedAttendanceRecords.length) return;
-    const headers = [
-      'Employee ID',
-      'Employee Name',
-      'Department',
-      'Date',
-      'Check-In',
-      'Check-Out',
-      'Working Hours',
-      'Overtime Hours',
-      'Status',
-    ];
-    const rows = processedAttendanceRecords.map((r) => [
-      `"${r.employeeCode || ''}"`,
-      `"${r.employeeName || ''}"`,
-      `"${r.departmentName || ''}"`,
-      `"${r.attendanceDate}"`,
-      `"${r.checkIn}"`,
-      `"${r.checkOut || 'Active'}"`,
-      `"${r.workingHours}"`,
-      `"${r.overtimeHours}"`,
-      `"${r.status}"`,
-    ]);
+    exportTableToCsv({
+      title: 'Workforce Attendance Audit Report',
+      subtitle: 'Aggregated attendance records, shift timestamps, and punctuality distribution',
+      filenamePrefix: `Apex_Attendance_Report_${todayStr}`,
+      metadata: {
+        'Audit Period': `${attStartDate || 'All Time'} to ${attEndDate || 'Present'}`,
+        'Department Scope': departments.find((d) => String(d.id) === attDept)?.departmentName || 'All Departments',
+        'Punctuality Filter': attStatus || 'All Statuses',
+        'Total Audited Records': processedAttendanceRecords.length,
+      },
+      headers: [
+        'Employee ID',
+        'Employee Name',
+        'Department',
+        'Date',
+        'Check-In',
+        'Check-Out',
+        'Working Hours',
+        'Overtime Hours',
+        'Status',
+      ],
+      rows: processedAttendanceRecords.map((r) => [
+        r.employeeCode || '',
+        r.employeeName || '',
+        r.departmentName || '',
+        r.attendanceDate,
+        r.checkIn,
+        r.checkOut || 'Active',
+        r.workingHours,
+        r.overtimeHours,
+        r.status,
+      ]),
+    });
+  };
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Apex_Attendance_Report_${todayStr}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  // Export Attendance PDF
+  const exportAttendancePDF = () => {
+    if (!processedAttendanceRecords.length) return;
+    exportTableToPdf({
+      title: 'Workforce Attendance Audit Report',
+      subtitle: 'Official corporate attendance ledger and working hours summary',
+      filenamePrefix: `Apex_Attendance_Report_${todayStr}`,
+      metadata: {
+        'Period': `${attStartDate || 'All Time'} to ${attEndDate || 'Present'}`,
+        'Department': departments.find((d) => String(d.id) === attDept)?.departmentName || 'All Departments',
+        'Status': attStatus || 'All Statuses',
+      },
+      headers: ['Employee ID', 'Name', 'Department', 'Date', 'In', 'Out', 'Hours', 'OT', 'Status'],
+      rows: processedAttendanceRecords.map((r) => [
+        r.employeeCode || '',
+        r.employeeName || '',
+        r.departmentName || '',
+        r.attendanceDate,
+        r.checkIn,
+        r.checkOut || 'Active',
+        r.workingHours,
+        r.overtimeHours,
+        r.status,
+      ]),
+    });
   };
 
   // Export Payroll CSV
   const exportPayrollCSV = () => {
     if (!processedPayrollRecords.length) return;
-    const headers = [
-      'Employee ID',
-      'Employee Name',
-      'Department',
-      'Payroll Period',
-      'Basic Salary',
-      'Overtime Pay',
-      'Allowances',
-      'Deductions',
-      'Gross Salary',
-      'Net Salary',
-      'Status',
-    ];
-    const rows = processedPayrollRecords.map((r) => [
-      `"${r.employeeCode || ''}"`,
-      `"${r.employeeName || ''}"`,
-      `"${r.departmentName || ''}"`,
-      `"${r.payrollPeriod}"`,
-      `"${parseFloat(r.basicSalary.toString()).toFixed(2)}"`,
-      `"${parseFloat(r.overtimeAmount.toString()).toFixed(2)}"`,
-      `"${parseFloat(r.allowances.toString()).toFixed(2)}"`,
-      `"${parseFloat(r.deductions.toString()).toFixed(2)}"`,
-      `"${parseFloat(r.grossSalary.toString()).toFixed(2)}"`,
-      `"${parseFloat(r.netSalary.toString()).toFixed(2)}"`,
-      `"${r.status}"`,
-    ]);
+    const totalGross = processedPayrollRecords.reduce((acc, r) => acc + parseFloat(r.grossSalary?.toString() || '0'), 0);
+    const totalNet = processedPayrollRecords.reduce((acc, r) => acc + parseFloat(r.netSalary?.toString() || '0'), 0);
+    const totalOT = processedPayrollRecords.reduce((acc, r) => acc + parseFloat(r.overtimeAmount?.toString() || '0'), 0);
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Apex_Payroll_Report_${payPeriod || todayStr}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    exportTableToCsv({
+      title: 'Executive Payroll Statement & Compensation Report',
+      subtitle: 'Aggregated payroll distributions, statutory deductions, overtime adjustments, and disbursements',
+      filenamePrefix: `Apex_Payroll_Report_${payPeriod || todayStr}`,
+      metadata: {
+        'Payroll Period': payPeriod || 'All Periods',
+        'Department Scope': departments.find((d) => String(d.id) === payDept)?.departmentName || 'All Departments',
+        'Status Filter': payStatus || 'All Statuses',
+        'Audited Headcount': processedPayrollRecords.length,
+        'Gross Payroll Total': `NLe ${totalGross.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        'Net Disbursement Total': `NLe ${totalNet.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      },
+      headers: [
+        'Employee ID',
+        'Employee Name',
+        'Department',
+        'Payroll Period',
+        'Basic Salary (NLe)',
+        'Overtime Pay (NLe)',
+        'Allowances (NLe)',
+        'Deductions (NLe)',
+        'Gross Salary (NLe)',
+        'Net Salary (NLe)',
+        'Status',
+      ],
+      rows: processedPayrollRecords.map((r) => [
+        r.employeeCode || '',
+        r.employeeName || '',
+        r.departmentName || '',
+        r.payrollPeriod,
+        parseFloat(r.basicSalary.toString()).toFixed(2),
+        parseFloat(r.overtimeAmount.toString()).toFixed(2),
+        parseFloat(r.allowances.toString()).toFixed(2),
+        parseFloat(r.deductions.toString()).toFixed(2),
+        parseFloat(r.grossSalary.toString()).toFixed(2),
+        parseFloat(r.netSalary.toString()).toFixed(2),
+        r.status,
+      ]),
+      summaryRow: [
+        'TOTALS',
+        '',
+        `Count: ${processedPayrollRecords.length}`,
+        '',
+        '',
+        totalOT.toFixed(2),
+        '',
+        '',
+        totalGross.toFixed(2),
+        totalNet.toFixed(2),
+        '',
+      ],
+    });
   };
 
-  const handlePrint = () => {
-    window.print();
+  // Export Payroll PDF
+  const exportPayrollPDF = () => {
+    if (!processedPayrollRecords.length) return;
+    exportTableToPdf({
+      title: 'Executive Payroll Statement & Compensation Report',
+      subtitle: 'Official corporate compensation statement and audit report',
+      filenamePrefix: `Apex_Payroll_Report_${payPeriod || todayStr}`,
+      metadata: {
+        'Period': payPeriod || 'All Periods',
+        'Department': departments.find((d) => String(d.id) === payDept)?.departmentName || 'All Departments',
+      },
+      headers: ['Emp ID', 'Name', 'Department', 'Period', 'Basic', 'OT Pay', 'Gross', 'Net', 'Status'],
+      rows: processedPayrollRecords.map((r) => [
+        r.employeeCode || '',
+        r.employeeName || '',
+        r.departmentName || '',
+        r.payrollPeriod,
+        parseFloat(r.basicSalary.toString()).toFixed(2),
+        parseFloat(r.overtimeAmount.toString()).toFixed(2),
+        parseFloat(r.grossSalary.toString()).toFixed(2),
+        parseFloat(r.netSalary.toString()).toFixed(2),
+        r.status,
+      ]),
+    });
   };
 
   // Render Status Badge
@@ -613,7 +686,7 @@ export const ReportsPage: React.FC = () => {
           </p>
         </div>
 
-        {/* Global Actions (Export CSV, Print, Refresh) */}
+        {/* Global Actions (Export CSV, Export PDF, Refresh) */}
         <div className="flex items-center space-x-2">
           <button
             onClick={activeTab === 'attendance' ? loadAttendanceReport : loadPayrollReport}
@@ -629,20 +702,20 @@ export const ReportsPage: React.FC = () => {
             onClick={activeTab === 'attendance' ? exportAttendanceCSV : exportPayrollCSV}
             disabled={isLoading || (activeTab === 'attendance' ? !processedAttendanceRecords.length : !processedPayrollRecords.length)}
             className="flex items-center space-x-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-2xs transition disabled:opacity-50"
-            title="Export filtered records as CSV"
+            title="Export filtered records as formatted Excel CSV"
           >
             <FileSpreadsheet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
             <span>Export CSV</span>
           </button>
 
           <button
-            onClick={handlePrint}
-            disabled={isLoading}
-            className="flex items-center space-x-1.5 rounded-xl bg-indigo-600 px-3.5 py-2 text-xs font-semibold text-white shadow-xs hover:bg-indigo-700 transition"
-            title="Open print dialog with formal report layout"
+            onClick={activeTab === 'attendance' ? exportAttendancePDF : exportPayrollPDF}
+            disabled={isLoading || (activeTab === 'attendance' ? !processedAttendanceRecords.length : !processedPayrollRecords.length)}
+            className="flex items-center space-x-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-2xs transition disabled:opacity-50"
+            title="Export filtered records as official corporate PDF"
           >
-            <Printer className="h-4 w-4 text-white" />
-            <span>Print Report</span>
+            <FileText className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+            <span>Export PDF</span>
           </button>
         </div>
       </div>
@@ -654,11 +727,10 @@ export const ReportsPage: React.FC = () => {
         {canAccessAttendance && (
           <button
             onClick={() => setActiveTab('attendance')}
-            className={`flex-1 flex items-center justify-center space-x-1.5 rounded-lg py-2 transition ${
-              activeTab === 'attendance'
+            className={`flex-1 flex items-center justify-center space-x-1.5 rounded-lg py-2 transition ${activeTab === 'attendance'
                 ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
+              }`}
           >
             <Calendar className="h-3.5 w-3.5" />
             <span>Attendance Report</span>
@@ -668,11 +740,10 @@ export const ReportsPage: React.FC = () => {
         {canAccessPayroll ? (
           <button
             onClick={() => setActiveTab('payroll')}
-            className={`flex-1 flex items-center justify-center space-x-1.5 rounded-lg py-2 transition ${
-              activeTab === 'payroll'
+            className={`flex-1 flex items-center justify-center space-x-1.5 rounded-lg py-2 transition ${activeTab === 'payroll'
                 ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
+              }`}
           >
             <DollarSign className="h-3.5 w-3.5" />
             <span>Payroll Report</span>

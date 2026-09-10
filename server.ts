@@ -3,6 +3,9 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
 import { apiRouter } from './src/server/routes.ts';
+import { aiRouter } from './src/ai/ai.routes.ts';
+import { notificationRouter } from './src/notifications/notification.routes.ts';
+import { NotificationQueue } from './src/notifications/notification.queue.ts';
 import { runDatabaseSeed } from './src/server/seed.ts';
 
 dotenv.config();
@@ -47,7 +50,7 @@ setInterval(() => {
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
 
   // Security: Disable X-Powered-By header
   app.disable('x-powered-by');
@@ -67,9 +70,21 @@ async function startServer() {
     next();
   });
 
-  // Body parser middleware with strict limits
-  app.use(express.json({ limit: '2mb' }));
-  app.use(express.urlencoded({ extended: true, limit: '2mb' }));
+  // Body parser middleware with generous limits for photo uploads
+  app.use(express.json({ limit: '15mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '15mb' }));
+
+  // Static uploads directory serving for employee photos and documents (no-cache to ensure immediate updates)
+  app.use(
+    '/uploads',
+    express.static(path.join(process.cwd(), 'public', 'uploads'), {
+      etag: true,
+      lastModified: true,
+      setHeaders: (res) => {
+        res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+      },
+    })
+  );
 
   // Health check
   app.get('/api/health', (req, res) => {
@@ -87,7 +102,12 @@ async function startServer() {
   app.use('/api/attendance/scan', rateLimiter(10 * 1000, 20, 'Rapid scan limit reached. Please wait a few seconds.'));
 
   // Mount API router
+  app.use('/api', notificationRouter);
   app.use('/api', apiRouter);
+  app.use('/api/ai', aiRouter);
+
+  // Start background notification queue processor
+  NotificationQueue.startWorker();
 
   // Centralized Error Handler (Never expose stack traces or raw database internals)
   app.use((err: any, req: Request, res: Response, next: NextFunction) => {

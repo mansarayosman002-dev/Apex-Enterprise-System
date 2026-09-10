@@ -7,6 +7,7 @@ export interface UserSession {
   roleName: UserRole;
   employeeId?: number | null;
   employee?: Employee | null;
+  photoUrl?: string | null;
   status: string;
   token: string;
 }
@@ -29,6 +30,7 @@ export interface Employee {
   departmentId: number;
   departmentName?: string;
   position: string;
+  photoUrl?: string | null;
   basicSalary: string | number;
   status: 'active' | 'inactive';
   createdAt: string;
@@ -48,6 +50,7 @@ export interface QRCodeData {
   employeeCode?: string;
   departmentName?: string;
   position?: string;
+  photoUrl?: string | null;
   qrValue: string;
   generatedAt: string;
   status: 'active' | 'revoked';
@@ -58,6 +61,7 @@ export interface QRCodeData {
     lastName: string;
     email: string;
     position: string;
+    photoUrl?: string | null;
     departmentName?: string;
   };
   dataUrl?: string;
@@ -161,12 +165,15 @@ export interface ScanResult {
   type: 'check_in' | 'check_out' | 'info' | 'error';
   message: string;
   timestamp: string;
+  cooldownSecondsRemaining?: number;
+  isOfflineSync?: boolean;
   employee?: {
     id: number;
     code: string;
     name: string;
     department: string;
     position: string;
+    photoUrl?: string | null;
   };
   attendance?: {
     id: number;

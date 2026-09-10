@@ -11,23 +11,23 @@ import { eq } from 'drizzle-orm';
 
 export async function runEmployeeTests() {
   console.log('====================================================');
-  console.log('👥 [2/9] STARTING EMPLOYEE TEST SUITE');
+  console.log("[2/10] STARTING EMPLOYEE TEST SUITE");
   console.log('====================================================');
   let passed = 0;
   let failed = 0;
 
   function assert(condition: boolean, testName: string, detail?: string) {
     if (condition) {
-      console.log(`  ✅ PASS: ${testName}`);
+      console.log(`  PASS: ${testName}`);
       passed++;
     } else {
-      console.error(`  ❌ FAIL: ${testName} - ${detail || 'Assertion failed'}`);
+      console.error(`  FAIL: ${testName} - ${detail || 'Assertion failed'}`);
       failed++;
     }
   }
 
   // Get a valid department ID for tests
-  const [firstDept] = await db.select().from(departments).limit(1);
+  const [firstDept]= await db.select().from(departments).limit(1);
   const deptId = firstDept?.id || 1;
 
   let createdEmpId: number | null = null;
@@ -172,7 +172,7 @@ export async function runEmployeeTests() {
       const deactivated = await deleteEmployee(createdEmpId);
       assert(deactivated.status === 'inactive', 'Employee status changed to inactive');
 
-      const [qr] = await db.select().from(qrCodes).where(eq(qrCodes.employeeId, createdEmpId));
+      const [qr]= await db.select().from(qrCodes).where(eq(qrCodes.employeeId, createdEmpId));
       assert(qr?.status === 'revoked', 'Employee QR code status changed to revoked');
     } catch (e: any) {
       assert(false, 'Deactivate employee check', e.message);

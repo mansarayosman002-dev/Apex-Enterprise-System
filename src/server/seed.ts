@@ -13,33 +13,34 @@ import {
   auditLogs,
 } from '../db/schema.ts';
 import { eq, sql } from 'drizzle-orm';
+import { applyDatabaseConstraints } from '../../scripts/apply_database_constraints.ts';
 
 const INITIAL_SCHEMA_DDL = `
   CREATE TABLE IF NOT EXISTS roles (
     id SERIAL PRIMARY KEY,
-    role_name TEXT NOT NULL UNIQUE,
+    role_name TEXT NOT NULL UNIQUE CHECK (length(trim(role_name)) > 0),
     description TEXT,
     created_at TIMESTAMP DEFAULT NOW() NOT NULL
   );
 
   CREATE TABLE IF NOT EXISTS departments (
     id SERIAL PRIMARY KEY,
-    department_name TEXT NOT NULL UNIQUE,
+    department_name TEXT NOT NULL UNIQUE CHECK (length(trim(department_name)) > 0),
     description TEXT,
     created_at TIMESTAMP DEFAULT NOW() NOT NULL
   );
 
   CREATE TABLE IF NOT EXISTS employees (
     id SERIAL PRIMARY KEY,
-    employee_code TEXT NOT NULL UNIQUE,
-    first_name TEXT NOT NULL,
-    last_name TEXT NOT NULL,
-    email TEXT NOT NULL UNIQUE,
-    phone TEXT NOT NULL,
+    employee_code TEXT NOT NULL UNIQUE CHECK (length(trim(employee_code)) > 0),
+    first_name TEXT NOT NULL CHECK (length(trim(first_name)) > 0),
+    last_name TEXT NOT NULL CHECK (length(trim(last_name)) > 0),
+    email TEXT NOT NULL UNIQUE CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$'),
+    phone TEXT NOT NULL CHECK (phone ~ '^[0-9+\\-\\s()]{6,25}$'),
     department_id INTEGER NOT NULL REFERENCES departments(id) ON DELETE RESTRICT,
-    position TEXT NOT NULL,
-    basic_salary NUMERIC(12, 2) DEFAULT '0.00' NOT NULL,
-    status TEXT DEFAULT 'active' NOT NULL,
+    position TEXT NOT NULL CHECK (length(trim(position)) > 0),
+    basic_salary NUMERIC(12, 2) DEFAULT '0.00' NOT NULL CHECK (basic_salary >= 0),
+    status TEXT DEFAULT 'active' NOT NULL CHECK (status IN ('active', 'inactive')),
     created_at TIMESTAMP DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP DEFAULT NOW() NOT NULL
   );
@@ -47,19 +48,19 @@ const INITIAL_SCHEMA_DDL = `
   CREATE TABLE IF NOT EXISTS qr_codes (
     id SERIAL PRIMARY KEY,
     employee_id INTEGER NOT NULL UNIQUE REFERENCES employees(id) ON DELETE CASCADE,
-    qr_value TEXT NOT NULL UNIQUE,
+    qr_value TEXT NOT NULL UNIQUE CHECK (length(trim(qr_value)) > 0),
     generated_at TIMESTAMP DEFAULT NOW() NOT NULL,
-    status TEXT DEFAULT 'active' NOT NULL
+    status TEXT DEFAULT 'active' NOT NULL CHECK (status IN ('active', 'revoked', 'expired'))
   );
 
   CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
-    username TEXT NOT NULL UNIQUE,
-    password_hash TEXT NOT NULL,
+    username TEXT NOT NULL UNIQUE CHECK (length(trim(username)) >= 3),
+    password_hash TEXT NOT NULL CHECK (length(trim(password_hash)) > 0),
     role_id INTEGER NOT NULL REFERENCES roles(id) ON DELETE RESTRICT,
     employee_id INTEGER REFERENCES employees(id) ON DELETE SET NULL,
     firebase_uid TEXT,
-    status TEXT DEFAULT 'active' NOT NULL,
+    status TEXT DEFAULT 'active' NOT NULL CHECK (status IN ('active', 'inactive')),
     created_at TIMESTAMP DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP DEFAULT NOW() NOT NULL
   );
@@ -67,24 +68,24 @@ const INITIAL_SCHEMA_DDL = `
   CREATE TABLE IF NOT EXISTS attendance (
     id SERIAL PRIMARY KEY,
     employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
-    attendance_date TEXT NOT NULL,
-    check_in TEXT NOT NULL,
-    check_out TEXT,
-    working_hours NUMERIC(6, 2) DEFAULT '0.00' NOT NULL,
-    overtime_hours NUMERIC(6, 2) DEFAULT '0.00' NOT NULL,
-    status TEXT DEFAULT 'Present' NOT NULL,
+    attendance_date TEXT NOT NULL CHECK (attendance_date ~ '^\\d{4}-\\d{2}-\\d{2}$'),
+    check_in TEXT NOT NULL CHECK (check_in ~ '^\\d{2}:\\d{2}(:\\d{2})?$'),
+    check_out TEXT CHECK (check_out IS NULL OR check_out ~ '^\\d{2}:\\d{2}(:\\d{2})?$'),
+    working_hours NUMERIC(6, 2) DEFAULT '0.00' NOT NULL CHECK (working_hours >= 0 AND working_hours <= 24),
+    overtime_hours NUMERIC(6, 2) DEFAULT '0.00' NOT NULL CHECK (overtime_hours >= 0 AND overtime_hours <= 24),
+    status TEXT DEFAULT 'Present' NOT NULL CHECK (status IN ('Present', 'Late', 'Early Departure', 'Overtime', 'Absent', 'Half Day', 'On Leave')),
     created_at TIMESTAMP DEFAULT NOW() NOT NULL
   );
 
   CREATE TABLE IF NOT EXISTS overtime (
     id SERIAL PRIMARY KEY,
     employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
-    overtime_date TEXT NOT NULL,
-    hours NUMERIC(6, 2) DEFAULT '0.00' NOT NULL,
-    rate_multiplier NUMERIC(4, 2) DEFAULT '1.50' NOT NULL,
-    amount NUMERIC(12, 2) DEFAULT '0.00' NOT NULL,
+    overtime_date TEXT NOT NULL CHECK (overtime_date ~ '^\\d{4}-\\d{2}-\\d{2}$'),
+    hours NUMERIC(6, 2) DEFAULT '0.00' NOT NULL CHECK (hours > 0 AND hours <= 24),
+    rate_multiplier NUMERIC(4, 2) DEFAULT '1.50' NOT NULL CHECK (rate_multiplier >= 1.0 AND rate_multiplier <= 5.0),
+    amount NUMERIC(12, 2) DEFAULT '0.00' NOT NULL CHECK (amount >= 0),
     reason TEXT,
-    status TEXT DEFAULT 'Pending' NOT NULL,
+    status TEXT DEFAULT 'Pending' NOT NULL CHECK (status IN ('Pending', 'Approved', 'Rejected')),
     approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
     approved_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT NOW() NOT NULL
@@ -93,22 +94,22 @@ const INITIAL_SCHEMA_DDL = `
   CREATE TABLE IF NOT EXISTS payroll (
     id SERIAL PRIMARY KEY,
     employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
-    payroll_period TEXT NOT NULL,
-    basic_salary NUMERIC(12, 2) DEFAULT '0.00' NOT NULL,
-    overtime_amount NUMERIC(12, 2) DEFAULT '0.00' NOT NULL,
-    allowances NUMERIC(12, 2) DEFAULT '0.00' NOT NULL,
-    deductions NUMERIC(12, 2) DEFAULT '0.00' NOT NULL,
-    gross_salary NUMERIC(12, 2) DEFAULT '0.00' NOT NULL,
-    net_salary NUMERIC(12, 2) DEFAULT '0.00' NOT NULL,
-    status TEXT DEFAULT 'Pending' NOT NULL,
+    payroll_period TEXT NOT NULL CHECK (payroll_period ~ '^\\d{4}-\\d{2}$'),
+    basic_salary NUMERIC(12, 2) DEFAULT '0.00' NOT NULL CHECK (basic_salary >= 0),
+    overtime_amount NUMERIC(12, 2) DEFAULT '0.00' NOT NULL CHECK (overtime_amount >= 0),
+    allowances NUMERIC(12, 2) DEFAULT '0.00' NOT NULL CHECK (allowances >= 0),
+    deductions NUMERIC(12, 2) DEFAULT '0.00' NOT NULL CHECK (deductions >= 0),
+    gross_salary NUMERIC(12, 2) DEFAULT '0.00' NOT NULL CHECK (gross_salary >= 0),
+    net_salary NUMERIC(12, 2) DEFAULT '0.00' NOT NULL CHECK (net_salary >= 0),
+    status TEXT DEFAULT 'Pending' NOT NULL CHECK (status IN ('Draft', 'Pending', 'Processed', 'Approved', 'Paid')),
     processed_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT NOW() NOT NULL
   );
 
   CREATE TABLE IF NOT EXISTS system_settings (
     id SERIAL PRIMARY KEY,
-    setting_key TEXT NOT NULL UNIQUE,
-    setting_value TEXT NOT NULL,
+    setting_key TEXT NOT NULL UNIQUE CHECK (length(trim(setting_key)) > 0),
+    setting_value TEXT NOT NULL CHECK (length(trim(setting_value)) > 0),
     description TEXT,
     updated_at TIMESTAMP DEFAULT NOW() NOT NULL
   );
@@ -129,6 +130,27 @@ export async function runDatabaseSeed(force = false) {
   try {
     // Ensure all database tables exist before querying or seeding
     await pool.query(INITIAL_SCHEMA_DDL);
+    await applyDatabaseConstraints();
+    await pool.query('ALTER TABLE employees ADD COLUMN IF NOT EXISTS photo_url TEXT;');
+
+    // Populate photo_url for existing seed employees if not set
+    const samplePhotos: Record<string, string> = {
+      'EMP-1001': '/uploads/employees/EMP-1001.jpg',
+      'EMP-1002': '/uploads/employees/EMP-1002.jpg',
+      'EMP-1003': '/uploads/employees/EMP-1003.jpg',
+      'EMP-1004': '/uploads/employees/EMP-1004.jpg',
+      'EMP-1005': '/uploads/employees/EMP-1005.jpg',
+      'EMP-1006': '/uploads/employees/EMP-1006.jpg',
+      'EMP-1007': '/uploads/employees/EMP-1007.jpg',
+      'EMP-1008': '/uploads/employees/EMP-1008.jpg',
+      'EMP-1009': '/uploads/employees/EMP-1009.jpg',
+      'EMP-1010': '/uploads/employees/EMP-1010.jpg',
+      'EMP-1011': '/uploads/employees/EMP-1011.jpg',
+      'EMP-1012': '/uploads/employees/EMP-1012.jpg',
+    };
+    for (const [code, photo] of Object.entries(samplePhotos)) {
+      await pool.query('UPDATE employees SET photo_url = $1 WHERE employee_code = $2 AND (photo_url IS NULL OR photo_url = \'\' OR photo_url LIKE \'https://images.unsplash.com%\')', [photo, code]);
+    }
 
     // Check if roles already exist
     const existingRoles = await db.select().from(roles);
@@ -178,10 +200,17 @@ export async function runDatabaseSeed(force = false) {
       { settingKey: 'unpaid_break_hours', settingValue: '1.0', description: 'Deducted daily unpaid break time in hours' },
       { settingKey: 'overtime_rate_multiplier', settingValue: '1.5', description: 'Overtime hourly rate multiplier relative to standard wage' },
       { settingKey: 'currency_symbol', settingValue: 'NLe', description: 'Currency symbol used in payroll reports (New Leone)' },
-      { settingKey: 'company_name', settingValue: 'Apex Enterprise Solutions (SL) Ltd.', description: 'Company / Organization Name' },
+      { settingKey: 'company_name', settingValue: 'Apex Enterprise SL Ltd', description: 'Company / Organization Name' },
+      { settingKey: 'company_legal_name', settingValue: 'Apex Enterprise Solutions (SL) Ltd.', description: 'Registered enterprise legal name in Sierra Leone' },
+      { settingKey: 'company_tagline', settingValue: "Sierra Leone's Leading Enterprise Workforce Management & Automated Payroll Solutions Provider", description: 'Corporate motto and industry positioning' },
       { settingKey: 'company_address', settingValue: '15 Siaka Stevens Street, Freetown, Sierra Leone', description: 'Headquarters Physical Address' },
       { settingKey: 'company_phone', settingValue: '+232 76 892 411', description: 'Official Corporate Contact Line' },
       { settingKey: 'company_email', settingValue: 'info@apexenterprise.sl', description: 'Official Corporate Email' },
+      { settingKey: 'company_overview', settingValue: 'Apex Enterprise SL Ltd (Apex Enterprise Solutions (SL) Ltd.) is a premier Sierra Leonean technology enterprise and software engineering consultancy headquartered in Freetown. The company specializes in building robust, high-security digital infrastructure for public corporations, financial institutions, private sector enterprises, and non-governmental organizations across Sierra Leone and the wider West African region.', description: 'Comprehensive corporate profile and mission statement' },
+      { settingKey: 'company_services', settingValue: '1. Enterprise HRMS & Workforce Management\n2. Smart QR Attendance & Terminal Infrastructure\n3. Automated Sierra Leone Statutory Payroll & Taxation (NASSIT & PAYE)\n4. Custom Enterprise Software Engineering & Cloud Modernization\n5. AI-Powered Enterprise Copilot & Workforce Analytics', description: 'Complete breakdown of corporate products and services' },
+      { settingKey: 'system_architecture_overview', settingValue: 'Enterprise Full-stack architecture: React 18, Vite, TailwindCSS, Node.js, Express.js, PostgreSQL 18, Drizzle ORM, multi-layer RBAC, and AI Copilot Layer.', description: 'Technical architecture of the Smart HR & Payroll system' },
+      { settingKey: 'system_attendance_workflow', settingValue: 'Encrypted QR badge generation, Mobile/Kiosk scanning, anti-buddy punching with live photo matching, 60s debounce guard, 15-min grace period, 1hr unpaid break deduction, and automatic overtime calculation.', description: 'Operational lifecycle and anti-fraud mechanics of attendance' },
+      { settingKey: 'system_payroll_workflow', settingValue: 'Basic Salary + Approved Overtime (1.5x) + Allowances - Deductions (NASSIT 5% employee / 10% employer + NRA progressive PAYE brackets) = Net Salary. Multi-step Draft -> Preview -> Approved -> Paid workflow.', description: 'Statutory calculation logic and disbursement workflow of payroll' },
     ];
 
     for (const s of defaultSettings) {
@@ -214,6 +243,7 @@ export async function runDatabaseSeed(force = false) {
         phone: '+232 76 892 411',
         departmentId: deptMap.get('Information Technology & Systems') || 1,
         position: 'Lead Systems Architect & CTO',
+        photoUrl: '/uploads/employees/EMP-1001.jpg',
         basicSalary: '8500.00',
         status: 'active',
       },
@@ -225,6 +255,7 @@ export async function runDatabaseSeed(force = false) {
         phone: '+232 78 345 678',
         departmentId: deptMap.get('Human Resources & Talent Management') || 2,
         position: 'Head of Human Resources & Personnel',
+        photoUrl: '/uploads/employees/EMP-1002.jpg',
         basicSalary: '6500.00',
         status: 'active',
       },
@@ -236,6 +267,7 @@ export async function runDatabaseSeed(force = false) {
         phone: '+232 77 456 789',
         departmentId: deptMap.get('Finance & Payroll Operations') || 3,
         position: 'Senior Payroll & Accounts Director',
+        photoUrl: '/uploads/employees/EMP-1003.jpg',
         basicSalary: '6800.00',
         status: 'active',
       },
@@ -247,6 +279,7 @@ export async function runDatabaseSeed(force = false) {
         phone: '+232 79 567 890',
         departmentId: deptMap.get('Information Technology & Systems') || 1,
         position: 'Full Stack Software Engineer',
+        photoUrl: '/uploads/employees/EMP-1004.jpg',
         basicSalary: '5800.00',
         status: 'active',
       },
@@ -258,6 +291,7 @@ export async function runDatabaseSeed(force = false) {
         phone: '+232 30 678 901',
         departmentId: deptMap.get('Operations & Logistics') || 4,
         position: 'General Operations & Logistics Manager',
+        photoUrl: '/uploads/employees/EMP-1005.jpg',
         basicSalary: '6200.00',
         status: 'active',
       },
@@ -269,6 +303,7 @@ export async function runDatabaseSeed(force = false) {
         phone: '+232 88 789 012',
         departmentId: deptMap.get('Commercial, Sales & Marketing') || 5,
         position: 'Director of Marketing & Communications',
+        photoUrl: '/uploads/employees/EMP-1006.jpg',
         basicSalary: '7200.00',
         status: 'active',
       },
@@ -280,6 +315,7 @@ export async function runDatabaseSeed(force = false) {
         phone: '+232 33 890 123',
         departmentId: deptMap.get('Operations & Logistics') || 4,
         position: 'Fleet & Logistics Dispatch Coordinator',
+        photoUrl: '/uploads/employees/EMP-1007.jpg',
         basicSalary: '4800.00',
         status: 'active',
       },
@@ -291,6 +327,7 @@ export async function runDatabaseSeed(force = false) {
         phone: '+232 76 234 567',
         departmentId: deptMap.get('Information Technology & Systems') || 1,
         position: 'Senior Network & Security Engineer',
+        photoUrl: '/uploads/employees/EMP-1008.jpg',
         basicSalary: '5400.00',
         status: 'active',
       },
@@ -302,6 +339,7 @@ export async function runDatabaseSeed(force = false) {
         phone: '+232 78 765 432',
         departmentId: deptMap.get('Finance & Payroll Operations') || 3,
         position: 'Senior Financial Analyst & Compliance Auditor',
+        photoUrl: '/uploads/employees/EMP-1009.jpg',
         basicSalary: '5200.00',
         status: 'active',
       },
@@ -313,6 +351,7 @@ export async function runDatabaseSeed(force = false) {
         phone: '+232 79 987 654',
         departmentId: deptMap.get('Commercial, Sales & Marketing') || 5,
         position: 'Corporate Client Relations Specialist',
+        photoUrl: '/uploads/employees/EMP-1010.jpg',
         basicSalary: '4600.00',
         status: 'active',
       },
@@ -324,6 +363,7 @@ export async function runDatabaseSeed(force = false) {
         phone: '+232 74 112 233',
         departmentId: deptMap.get('Information Technology & Systems') || 1,
         position: 'Software QA & Systems Analyst',
+        photoUrl: '/uploads/employees/EMP-1011.jpg',
         basicSalary: '5100.00',
         status: 'active',
       },
@@ -335,6 +375,7 @@ export async function runDatabaseSeed(force = false) {
         phone: '+232 31 445 566',
         departmentId: deptMap.get('Operations & Logistics') || 4,
         position: 'Regional Dispatch & Warehouse Supervisor',
+        photoUrl: '/uploads/employees/EMP-1012.jpg',
         basicSalary: '4500.00',
         status: 'active',
       },
@@ -342,9 +383,23 @@ export async function runDatabaseSeed(force = false) {
 
     for (const emp of employeesData) {
       await db.insert(employees).values(emp).onConflictDoNothing();
+      // Ensure photoUrl is updated even if employee row already existed
+      if (emp.photoUrl) {
+        await db.update(employees).set({ photoUrl: emp.photoUrl }).where(eq(employees.employeeCode, emp.employeeCode));
+      }
     }
 
     const insertedEmployees = await db.select().from(employees);
+
+    // Auto-map photos for any employee whose photoUrl is not yet set
+    for (const emp of insertedEmployees) {
+      if (!emp.photoUrl && emp.employeeCode) {
+        await db
+          .update(employees)
+          .set({ photoUrl: `/uploads/employees/${emp.employeeCode}.jpg` })
+          .where(eq(employees.id, emp.id));
+      }
+    }
 
     // 5. QR Codes for each employee
     for (const emp of insertedEmployees) {
@@ -411,7 +466,7 @@ export async function runDatabaseSeed(force = false) {
     for (let dayOffset = 13; dayOffset >= 0; dayOffset--) {
       const d = new Date(now);
       d.setDate(d.getDate() - dayOffset);
-      
+
       // Skip weekends
       const dayOfWeek = d.getDay();
       if (dayOfWeek === 0 || dayOfWeek === 6) continue;
@@ -420,7 +475,7 @@ export async function runDatabaseSeed(force = false) {
 
       for (let i = 0; i < insertedEmployees.length; i++) {
         const emp = insertedEmployees[i];
-        
+
         // Vary statuses: on offset 0 (today), check some in, some not yet checked out
         if (dayOffset === 0) {
           // Today's logs

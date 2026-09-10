@@ -56,16 +56,192 @@ html.dark ::-webkit-scrollbar-thumb:hover {
 }
 
 @media print {
-  body {
-    background-color: white !important;
-    color: black !important;
+  @page {
+    size: A4 landscape;
+    margin: 8mm 10mm 10mm 10mm;
   }
-  header, aside, button, nav, .print\:hidden {
+
+  html, body {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    font-size: 10px !important;
+  }
+
+  /* Hide navigation, sidebar, and web controls during print */
+  header, aside, button, nav, .print\:hidden, [role="navigation"], .no-print {
     display: none !important;
   }
+
   main {
     padding: 0 !important;
     margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
     overflow: visible !important;
   }
+
+  /* Ensure tables fit within A4 landscape printable bounds */
+  table {
+    width: 100% !important;
+    max-width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 9px !important;
+    table-layout: auto !important;
+  }
+
+  th, td {
+    padding: 4px 6px !important;
+    word-break: break-word !important;
+  }
+
+  thead {
+    display: table-header-group !important;
+  }
+
+  tfoot {
+    display: table-footer-group !important;
+  }
+
+  tr {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .break-inside-avoid {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+}
+
+/* =========================================================
+   PREMIUM UI ANIMATION UTILITIES
+========================================================= */
+@keyframes float-slow {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-12px) rotate(1.5deg);
+  }
+}
+
+@keyframes float-reverse {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(12px) rotate(-1.5deg);
+  }
+}
+
+@keyframes scanline {
+  0% {
+    top: 0%;
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    top: 96%;
+    opacity: 0.8;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
+}
+
+.animate-float-slow {
+  animation: float-slow 7s ease-in-out infinite;
+}
+
+.animate-float-reverse {
+  animation: float-reverse 9s ease-in-out infinite;
+}
+
+.animate-scanline {
+  animation: scanline 2.5s ease-in-out infinite alternate;
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.18) 50%, rgba(255,255,255,0) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 3s infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 4s ease-in-out infinite;
+}
+
+.animate-shake {
+  animation: shake 0.4s ease-in-out;
+}
+
+/* =========================================================
+   MOBILE RESPONSIVE & TOUCH UTILITIES
+========================================================= */
+@supports (padding: max(0px)) {
+  .safe-area-bottom {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+  .safe-area-top {
+    padding-top: max(0.5rem, env(safe-area-inset-top));
+  }
+}
+
+/* Smooth Momentum Touch Scrolling */
+.touch-scroll {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* Hide scrollbars while allowing swipe navigation */
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* Minimum comfortable touch target size (44x44px per WCAG / Material / Apple HIG) */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Responsive Table Wrapper with Visual Touch Indicator */
+.table-responsive-wrapper {
+  position: relative;
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }

@@ -27,6 +27,7 @@ import { ManagementDashboardView } from '../components/dashboard/ManagementDashb
 import { DashboardSkeleton } from '../components/common/LoadingSkeleton.tsx';
 import { ErrorBanner } from '../components/common/ErrorBanner.tsx';
 import { SuccessBanner } from '../components/common/SuccessBanner.tsx';
+import { PHOTO_UPDATED_EVENT, EmployeePhotoUpdateDetail, withPhotoCacheBuster } from '../utils/photoSync.ts';
 
 interface DashboardPageProps {
   onOpenScanner: () => void;
@@ -154,6 +155,63 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenScanner, set
     }
   };
 
+  const [userPhotoError, setUserPhotoError] = useState<boolean>(false);
+  const [photoVersion, setPhotoVersion] = useState<number>(Date.now());
+
+  // Listen for real-time employee photo updates
+  useEffect(() => {
+    const handlePhotoUpdate = (e: Event) => {
+      const detail = (e as CustomEvent<EmployeePhotoUpdateDetail>).detail;
+      if (!detail) return;
+
+      setEmployeeProfile((prev) => {
+        if (!prev) return null;
+        if (prev.id === detail.employeeId || prev.employeeCode === detail.employeeCode) {
+          return { ...prev, photoUrl: detail.photoUrl };
+        }
+        return prev;
+      });
+
+      setEmployees((prev) =>
+        prev.map((emp) =>
+          emp.id === detail.employeeId || emp.employeeCode === detail.employeeCode
+            ? { ...emp, photoUrl: detail.photoUrl }
+            : emp
+        )
+      );
+
+      setPhotoVersion(Date.now());
+      setUserPhotoError(false);
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener(PHOTO_UPDATED_EVENT, handlePhotoUpdate);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener(PHOTO_UPDATED_EVENT, handlePhotoUpdate);
+      }
+    };
+  }, []);
+
+  // Resolved signed-in employee identity & passport photo
+  const currentEmp = user?.employee || employeeProfile;
+  const signedInName = currentEmp ? `${currentEmp.firstName} ${currentEmp.lastName}` : (user?.username || 'Executive');
+  const signedInRole = currentEmp?.position || user?.roleName || 'Staff';
+  const signedInDept = currentEmp?.departmentName;
+  const signedInEmpCode = currentEmp?.employeeCode || (user?.employeeId ? `EMP-${user.employeeId}` : null);
+  const rawSignedInPhoto =
+    currentEmp?.photoUrl ||
+    user?.photoUrl ||
+    (currentEmp?.employeeCode ? `/uploads/employees/${currentEmp.employeeCode}.jpg` : null) ||
+    (signedInEmpCode ? `/uploads/employees/${signedInEmpCode}.jpg` : null);
+
+  const signedInPhoto = withPhotoCacheBuster(rawSignedInPhoto, photoVersion);
+
+  const signedInInitials = currentEmp
+    ? `${currentEmp.firstName.charAt(0)}${currentEmp.lastName.charAt(0)}`.toUpperCase()
+    : (user?.username?.substring(0, 2).toUpperCase() || 'EX');
+
   const perspectives: { role: DashboardPerspective; label: string; icon: any }[] = [
     { role: 'Administrator', label: 'Administrator', icon: LayoutDashboard },
     { role: 'HR Officer', label: 'HR Dashboard', icon: Users },
@@ -166,20 +224,58 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenScanner, set
     <div className="space-y-6">
       {/* Top Header & Perspective Switcher */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <div className="flex items-center space-x-2">
-            <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
-              {perspective} Dashboard
-            </h1>
+        <div className="flex items-center space-x-3.5">
+          {/* Signed-in Employee Profile Picture */}
+          <div className="relative shrink-0">
+            <div className="h-12 w-12 sm:h-13 sm:w-13 rounded-2xl overflow-hidden ring-2 ring-indigo-500/30 dark:ring-indigo-400/40 bg-slate-100 dark:bg-slate-800 shadow-sm flex items-center justify-center">
+              {signedInPhoto && !userPhotoError ? (
+                <img
+                  src={signedInPhoto}
+                  alt={signedInName}
+                  className="h-full w-full object-cover object-top"
+                  onError={() => setUserPhotoError(true)}
+                />
+              ) : (
+                <div className="h-full w-full flex items-center justify-center bg-indigo-600 text-white font-bold text-sm sm:text-base">
+                  {signedInInitials}
+                </div>
+              )}
+            </div>
+            {/* Online/Active status indicator */}
+            <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5" title="Active Employee Session">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 ring-2 ring-white dark:ring-slate-900"></span>
+            </span>
           </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Role-specific operational metrics, attendance telemetry, and payroll distribution
-          </p>
+
+          <div>
+            <div className="flex items-center space-x-2">
+              <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
+                {perspective} Dashboard
+              </h1>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 flex flex-wrap items-center gap-1.5">
+              <span>Welcome, <strong className="font-semibold text-slate-800 dark:text-slate-200">{signedInName}</strong></span>
+              <span>•</span>
+              <span className="text-indigo-600 dark:text-indigo-400 font-medium">{signedInRole}</span>
+              {signedInDept && (
+                <>
+                  <span>•</span>
+                  <span>{signedInDept}</span>
+                </>
+              )}
+              {signedInEmpCode && (
+                <span className="font-mono text-[10px] bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                  {signedInEmpCode}
+                </span>
+              )}
+            </p>
+          </div>
         </div>
 
         {/* Perspective / Role Selector Pill Bar */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-          <div className="flex items-center rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-1 shadow-2xs">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none touch-scroll max-w-full">
+          <div className="flex items-center rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-1 shadow-2xs shrink-0">
             {perspectives.map(({ role, label, icon: Icon }) => {
               const isActive = perspective === role;
               return (

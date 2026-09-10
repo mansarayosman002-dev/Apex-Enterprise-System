@@ -5,9 +5,10 @@ import { db } from '../db/index.ts';
 import { users, roles, employees } from '../db/schema.ts';
 import { eq } from 'drizzle-orm';
 
-const JWT_SECRET: string = process.env.JWT_SECRET || 'apex-smart-attendance-payroll-secret-2026';
+const JWT_SECRET: string = process.env.JWT_SECRET || 'apex_hrms_jwt_secret_key_2026_super_secure';
 const FALLBACK_SECRETS = [
   JWT_SECRET,
+  'apex_hrms_jwt_secret_key_2026_super_secure',
   'apex-smart-attendance-payroll-secret-2026-enterprise-security',
   'apex-smart-attendance-payroll-secret-2026',
 ];

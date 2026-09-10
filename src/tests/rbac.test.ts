@@ -2,26 +2,26 @@ import { AuthenticatedUser } from '../server/authMiddleware.ts';
 
 export async function runRBACTests() {
   console.log('====================================================');
-  console.log('🛡️  [7/9] STARTING ROLE-BASED ACCESS CONTROL (RBAC) TEST SUITE');
+  console.log("[7/10] STARTING ROLE-BASED ACCESS CONTROL (RBAC) TEST SUITE");
   console.log('====================================================');
   let passed = 0;
   let failed = 0;
 
   function assert(condition: boolean, testName: string, detail?: string) {
     if (condition) {
-      console.log(`  ✅ PASS: ${testName}`);
+      console.log(`  PASS: ${testName}`);
       passed++;
     } else {
-      console.error(`  ❌ FAIL: ${testName} - ${detail || 'Assertion failed'}`);
+      console.error(`  FAIL: ${testName} - ${detail || 'Assertion failed'}`);
       failed++;
     }
   }
 
   // Define Mock Users for Each Role
-  const admin: AuthenticatedUser = { id: 1, username: 'admin', roleId: 1, roleName: 'Administrator' };
-  const hrOfficer: AuthenticatedUser = { id: 2, username: 'hr_user', roleId: 2, roleName: 'HR Officer' };
-  const payrollOfficer: AuthenticatedUser = { id: 3, username: 'payroll_user', roleId: 3, roleName: 'Payroll Officer' };
-  const management: AuthenticatedUser = { id: 4, username: 'manager_user', roleId: 5, roleName: 'Management' };
+  const admin: AuthenticatedUser = { id: 1, username: 'admin', roleId: 1, roleName: 'Administrator'};
+  const hrOfficer: AuthenticatedUser = { id: 2, username: 'hr_user', roleId: 2, roleName: 'HR Officer'};
+  const payrollOfficer: AuthenticatedUser = { id: 3, username: 'payroll_user', roleId: 3, roleName: 'Payroll Officer'};
+  const management: AuthenticatedUser = { id: 4, username: 'manager_user', roleId: 5, roleName: 'Management'};
   const employee: AuthenticatedUser = { id: 5, username: 'emp_user', roleId: 4, roleName: 'Employee', employeeId: 10 };
 
   // Helper matching the authorizeRoles middleware logic
@@ -106,7 +106,7 @@ export async function runRBACTests() {
 
     // Check self access logic
     const canAccessOwn = employee.employeeId === ownEmployeeId;
-    const canAccessOther = employee.roleName === 'Administrator' || employee.employeeId === otherEmployeeId;
+    const canAccessOther = employee.roleName === 'Administrator'|| employee.employeeId === otherEmployeeId;
 
     assert(canAccessOwn, 'Employee CAN view their own profile/attendance/payslip');
     assert(!canAccessOther, 'Employee CANNOT view other employees profiles/attendance/payslips (IDOR protection)');

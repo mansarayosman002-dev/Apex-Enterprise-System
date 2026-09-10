@@ -18,9 +18,29 @@ export const SettingsPage: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
+  const [dbStatus, setDbStatus] = useState<any>(null);
+  const [isTestingDb, setIsTestingDb] = useState(false);
+  const [dbTestSuccess, setDbTestSuccess] = useState(false);
+
   useEffect(() => {
     loadSettings();
+    testDbConnection();
   }, []);
+
+  const testDbConnection = async () => {
+    setIsTestingDb(true);
+    setDbTestSuccess(false);
+    try {
+      const status = await api.getDatabaseStatus();
+      setDbStatus(status);
+      setDbTestSuccess(true);
+      setTimeout(() => setDbTestSuccess(false), 4000);
+    } catch (err) {
+      console.error('Failed to query database status:', err);
+    } finally {
+      setIsTestingDb(false);
+    }
+  };
 
   const loadSettings = async () => {
     setIsLoading(true);
@@ -181,15 +201,84 @@ export const SettingsPage: React.FC = () => {
           </p>
         </div>
 
-        {/* Infrastructure Reference */}
-        <div className="rounded-2xl border border-indigo-100 dark:border-indigo-900/60 bg-indigo-50/50 dark:bg-indigo-950/40 p-5 text-xs text-slate-700 dark:text-slate-300 space-y-2">
-          <div className="flex items-center space-x-2 font-bold text-indigo-950 dark:text-indigo-300">
-            <Database className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-            <h3>Cloud SQL PostgreSQL Configuration</h3>
+        {/* PostgreSQL 18 Infrastructure Diagnostic Card */}
+        <div className="rounded-2xl border border-indigo-200 dark:border-indigo-900/60 bg-gradient-to-br from-indigo-50/70 via-white to-slate-50 dark:from-slate-900 dark:via-slate-900 dark:to-indigo-950/40 p-6 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-center space-x-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-md shadow-indigo-500/20">
+                <Database className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="flex items-center space-x-2">
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                    PostgreSQL 18 Database Engine
+                  </h3>
+                  <span className="flex h-2 w-2 relative">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+                    {dbStatus ? dbStatus.status : 'Active'}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Database: <span className="font-mono text-slate-700 dark:text-slate-300 font-semibold">{dbStatus?.database || 'apex_hrms_db'}</span> • Port: <span className="font-mono text-slate-700 dark:text-slate-300 font-semibold">{dbStatus?.port || 5432}</span> • User: <span className="font-mono text-slate-700 dark:text-slate-300 font-semibold">{dbStatus?.user || 'postgres'}</span>
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              disabled={isTestingDb}
+              onClick={testDbConnection}
+              className="inline-flex items-center justify-center space-x-1.5 px-3.5 py-2 rounded-xl border border-indigo-300 dark:border-indigo-700 bg-white dark:bg-slate-800 text-xs font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-slate-700 transition shadow-2xs shrink-0 disabled:opacity-50"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${isTestingDb ? 'animate-spin' : ''}`} />
+              <span>{isTestingDb ? 'Testing Latency...' : 'Test Connection'}</span>
+            </button>
           </div>
-          <p className="text-[11px] text-slate-600 dark:text-slate-400">
-            Instance: europe-west1 • Schema: Drizzle ORM • Dual Layer Security: Firebase ID Token & Cryptographic SHA256 QR tokens.
-          </p>
+
+          {dbTestSuccess && (
+            <div className="flex items-center space-x-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 p-3 text-xs text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 animate-in fade-in">
+              <CheckCircle2 className="h-4 w-4 shrink-0" />
+              <span>PostgreSQL 18 connection verified! Latency: <strong>{dbStatus?.latencyMs}ms</strong>. Auto-upsert synchronization active.</span>
+            </div>
+          )}
+
+          {dbStatus && (
+            <div className="space-y-3 pt-2 border-t border-slate-200 dark:border-slate-800">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="p-2.5 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60">
+                  <span className="text-[10px] uppercase font-bold text-slate-400">Engine Build</span>
+                  <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate mt-0.5" title={dbStatus.version}>
+                    {dbStatus.engine}
+                  </p>
+                </div>
+                <div className="p-2.5 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60">
+                  <span className="text-[10px] uppercase font-bold text-slate-400">Ping Latency</span>
+                  <p className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                    {dbStatus.latencyMs} ms
+                  </p>
+                </div>
+                <div className="p-2.5 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60">
+                  <span className="text-[10px] uppercase font-bold text-slate-400">Registered Employees</span>
+                  <p className="text-xs font-bold text-slate-800 dark:text-slate-200 mt-0.5">
+                    {dbStatus.tableCounts?.employees ?? 0} records
+                  </p>
+                </div>
+                <div className="p-2.5 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60">
+                  <span className="text-[10px] uppercase font-bold text-slate-400">Attendance Logs</span>
+                  <p className="text-xs font-bold text-slate-800 dark:text-slate-200 mt-0.5">
+                    {dbStatus.tableCounts?.attendance ?? 0} records
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/40 text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                <span className="font-semibold text-indigo-900 dark:text-indigo-300">Automated Data Pipeline:</span> When employee rosters or attendance logs are uploaded via CSV or Excel, they are automatically inserted into the database. Existing records are updated in real-time without duplicate key conflicts.
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col sm:flex-row justify-end">

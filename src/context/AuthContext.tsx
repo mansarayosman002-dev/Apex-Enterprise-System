@@ -4,6 +4,8 @@ import { api, setStoredToken, clearStoredToken, getStoredToken } from '../servic
 import { auth, googleAuthProvider } from '../lib/firebase.ts';
 import { signInWithPopup } from 'firebase/auth';
 
+import { PHOTO_UPDATED_EVENT, EmployeePhotoUpdateDetail } from '../utils/photoSync.ts';
+
 interface AuthContextType {
   user: UserSession | null;
   isLoading: boolean;
@@ -40,30 +42,74 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     checkAuth();
+
+    const handleAuthExpired = () => {
+      clearStoredToken();
+      setUser(null);
+    };
+
+    const handlePhotoUpdated = (e: Event) => {
+      const detail = (e as CustomEvent<EmployeePhotoUpdateDetail>).detail;
+      if (!detail) return;
+      const { employeeId, photoUrl, employeeCode } = detail;
+
+      setUser((prev) => {
+        if (!prev) return null;
+        const matches =
+          prev.employeeId === employeeId ||
+          prev.employee?.id === employeeId ||
+          (employeeCode && prev.employee?.employeeCode === employeeCode);
+
+        if (!matches) return prev;
+
+        return {
+          ...prev,
+          photoUrl: photoUrl || null,
+          employee: prev.employee
+            ? { ...prev.employee, photoUrl: photoUrl || null }
+            : prev.employee,
+        };
+      });
+    };
+
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'apex:last-photo-update' && e.newValue) {
+        try {
+          const detail = JSON.parse(e.newValue);
+          window.dispatchEvent(new CustomEvent(PHOTO_UPDATED_EVENT, { detail }));
+        } catch {
+          // ignore
+        }
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('apex:auth-expired', handleAuthExpired);
+      window.addEventListener(PHOTO_UPDATED_EVENT, handlePhotoUpdated);
+      window.addEventListener('storage', handleStorageChange);
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('apex:auth-expired', handleAuthExpired);
+        window.removeEventListener(PHOTO_UPDATED_EVENT, handlePhotoUpdated);
+        window.removeEventListener('storage', handleStorageChange);
+      }
+    };
   }, []);
 
   const login = async (username: string, password = 'password123') => {
-    setIsLoading(true);
-    try {
-      const response = await api.login({ username, password });
-      setStoredToken(response.token);
-      setUser(response.user);
-    } finally {
-      setIsLoading(false);
-    }
+    const response = await api.login({ username, password });
+    setStoredToken(response.token);
+    setUser(response.user);
   };
 
   const loginWithGoogle = async () => {
-    setIsLoading(true);
-    try {
-      const cred = await signInWithPopup(auth, googleAuthProvider);
-      const idToken = await cred.user.getIdToken();
-      const response = await api.firebaseLogin(idToken);
-      setStoredToken(response.token);
-      setUser(response.user);
-    } finally {
-      setIsLoading(false);
-    }
+    const cred = await signInWithPopup(auth, googleAuthProvider);
+    const idToken = await cred.user.getIdToken();
+    const response = await api.firebaseLogin(idToken);
+    setStoredToken(response.token);
+    setUser(response.user);
   };
 
   const logout = () => {

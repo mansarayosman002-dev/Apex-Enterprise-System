@@ -12,6 +12,13 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { EmployeeProfileModal } from '../components/employees/EmployeeProfileModal.tsx';
+import {
+  EmployeeIDBadge,
+  EmployeeBadgeData,
+  printEmployeeBadge,
+  printAllBadgesSheet,
+} from '../components/common/EmployeeIDBadge.tsx';
+import { PHOTO_UPDATED_EVENT, EmployeePhotoUpdateDetail, withPhotoCacheBuster } from '../utils/photoSync.ts';
 
 export const QRCodesPage: React.FC = () => {
   const [qrcodes, setQrcodes] = useState<QRCodeData[]>([]);
@@ -21,6 +28,46 @@ export const QRCodesPage: React.FC = () => {
 
   useEffect(() => {
     loadQRCodes();
+  }, []);
+
+  useEffect(() => {
+    const handlePhotoUpdate = (e: Event) => {
+      const detail = (e as CustomEvent<EmployeePhotoUpdateDetail>).detail;
+      if (!detail) return;
+      const detId = detail.employeeId != null ? detail.employeeId.toString() : '';
+      const detCode = (detail.employeeCode || '').trim().toLowerCase();
+
+      setQrcodes((prev) =>
+        prev.map((item) => {
+          const itemId = item.employeeId != null ? item.employeeId.toString() : '';
+          const itemCode = (item.employeeCode || item.employee?.employeeCode || '').trim().toLowerCase();
+          const matches =
+            (itemId && detId && itemId === detId) ||
+            (itemCode && detCode && itemCode === detCode) ||
+            (detId && itemCode === `emp-${detId}`) ||
+            (detId && itemCode === `emp-${detId.padStart(4, '0')}`);
+
+          if (matches) {
+            const cacheBusted = withPhotoCacheBuster(detail.photoUrl, detail.timestamp);
+            return {
+              ...item,
+              photoUrl: cacheBusted,
+              employee: item.employee ? { ...item.employee, photoUrl: cacheBusted } : item.employee,
+            };
+          }
+          return item;
+        })
+      );
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener(PHOTO_UPDATED_EVENT, handlePhotoUpdate);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener(PHOTO_UPDATED_EVENT, handlePhotoUpdate);
+      }
+    };
   }, []);
 
   const loadQRCodes = async () => {
@@ -46,7 +93,19 @@ export const QRCodesPage: React.FC = () => {
   });
 
   const handlePrintAll = () => {
-    window.print();
+    if (filtered.length === 0) return;
+    const badgesData: EmployeeBadgeData[] = filtered.map((item) => ({
+      fullName: item.employeeName || `${item.employee?.firstName} ${item.employee?.lastName}`,
+      jobTitle: item.position || item.employee?.position || 'Staff Member',
+      department: item.departmentName || item.employee?.departmentName || 'General',
+      employeeId: item.employeeCode || item.employee?.employeeCode || `EMP-${item.employeeId}`,
+      rawEmployeeId: item.employeeId,
+      employeeCode: item.employeeCode || item.employee?.employeeCode,
+      photoUrl: item.photoUrl || item.employee?.photoUrl,
+      qrCodeUrl: item.dataUrl,
+      status: item.status,
+    }));
+    printAllBadgesSheet(badgesData);
   };
 
   const handleDownloadSingle = (item: QRCodeData) => {
@@ -106,62 +165,60 @@ export const QRCodesPage: React.FC = () => {
           <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">No QR badges match your search</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filtered.map((item) => (
-            <div
-              key={item.id}
-              className="flex flex-col items-center justify-between rounded-2xl border-2 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-xs hover:border-indigo-400 dark:hover:border-indigo-600 hover:shadow-md transition text-center"
-            >
-              {/* Badge Top Header */}
-              <div className="w-full border-b border-slate-100 dark:border-slate-800 pb-3">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-600 dark:text-indigo-400">
-                  Apex Enterprise
-                </span>
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">{item.employeeName}</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">{item.position}</p>
-                <div className="mt-1 flex items-center justify-center space-x-1 text-[11px] text-slate-400 dark:text-slate-500">
-                  <Building className="h-3 w-3" />
-                  <span>{item.departmentName}</span>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {filtered.map((item) => {
+            const badgeData: EmployeeBadgeData = {
+              fullName: item.employeeName || `${item.employee?.firstName} ${item.employee?.lastName}`,
+              jobTitle: item.position || item.employee?.position || 'Staff Member',
+              department: item.departmentName || item.employee?.departmentName || 'General',
+              employeeId: item.employeeCode || item.employee?.employeeCode || `EMP-${item.employeeId}`,
+              rawEmployeeId: item.employeeId,
+              employeeCode: item.employeeCode || item.employee?.employeeCode,
+              photoUrl: item.photoUrl || item.employee?.photoUrl,
+              qrCodeUrl: item.dataUrl,
+              status: item.status,
+            };
+
+            return (
+              <div
+                key={item.id}
+                className="flex flex-col items-center justify-between rounded-2xl border-2 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xs hover:border-indigo-400 dark:hover:border-indigo-600 hover:shadow-md transition text-center group"
+              >
+                {/* Portrait ID Badge Component (53.98 x 85.60 mm) */}
+                <div className="w-full flex justify-center py-1">
+                  <EmployeeIDBadge badge={badgeData} variant="compact" />
+                </div>
+
+                {/* Badge Action Buttons */}
+                <div className="w-full flex items-center justify-center gap-1.5 pt-3 border-t border-slate-100 dark:border-slate-800 print:hidden mt-2">
+                  <button
+                    onClick={() => printEmployeeBadge(badgeData)}
+                    className="flex-1 flex items-center justify-center space-x-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1.5 text-[11px] font-semibold transition shadow-2xs"
+                    title="Print portrait badge (53.98 × 85.60 mm)"
+                  >
+                    <Printer className="h-3.5 w-3.5 text-white" />
+                    <span>Print</span>
+                  </button>
+                  <button
+                    onClick={() => handleDownloadSingle(item)}
+                    className="flex items-center space-x-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition"
+                    title="Download QR code"
+                  >
+                    <Download className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+                    <span>QR</span>
+                  </button>
+                  <button
+                    onClick={() => setSelectedEmpId(item.employeeId)}
+                    className="flex items-center space-x-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-1.5 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition"
+                    title="Inspect employee profile and badge"
+                  >
+                    <ShieldCheck className="h-3.5 w-3.5" />
+                    <span>Details</span>
+                  </button>
                 </div>
               </div>
-
-              {/* QR Image */}
-              <div className="my-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white p-3 shadow-inner">
-                {item.dataUrl ? (
-                  <img
-                    src={item.dataUrl}
-                    alt={`${item.employeeName} QR`}
-                    className="h-40 w-40 object-contain"
-                  />
-                ) : (
-                  <div className="flex h-40 w-40 items-center justify-center bg-slate-50 text-slate-400">
-                    <QrCode className="h-12 w-12" />
-                  </div>
-                )}
-                <span className="mt-1 block font-mono text-[11px] font-bold text-slate-700">
-                  {item.employeeCode}
-                </span>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="w-full flex items-center justify-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800 print:hidden">
-                <button
-                  onClick={() => handleDownloadSingle(item)}
-                  className="flex items-center space-x-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-[11px] font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition"
-                >
-                  <Download className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
-                  <span>Download</span>
-                </button>
-                <button
-                  onClick={() => setSelectedEmpId(item.employeeId)}
-                  className="flex items-center space-x-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 px-3 py-1.5 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition"
-                >
-                  <ShieldCheck className="h-3.5 w-3.5" />
-                  <span>Full Card</span>
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -171,6 +228,7 @@ export const QRCodesPage: React.FC = () => {
         onClose={() => setSelectedEmpId(null)}
         employeeId={selectedEmpId}
         onRegenerateQR={loadQRCodes}
+        onPhotoUpdated={loadQRCodes}
       />
     </div>
   );

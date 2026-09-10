@@ -54,29 +54,29 @@ async function setup() {
     const ddl = `
       CREATE TABLE IF NOT EXISTS roles (
         id SERIAL PRIMARY KEY,
-        role_name TEXT NOT NULL UNIQUE,
+        role_name TEXT NOT NULL UNIQUE CHECK (length(trim(role_name)) > 0),
         description TEXT,
         created_at TIMESTAMP DEFAULT NOW() NOT NULL
       );
 
       CREATE TABLE IF NOT EXISTS departments (
         id SERIAL PRIMARY KEY,
-        department_name TEXT NOT NULL UNIQUE,
+        department_name TEXT NOT NULL UNIQUE CHECK (length(trim(department_name)) > 0),
         description TEXT,
         created_at TIMESTAMP DEFAULT NOW() NOT NULL
       );
 
       CREATE TABLE IF NOT EXISTS employees (
         id SERIAL PRIMARY KEY,
-        employee_code TEXT NOT NULL UNIQUE,
-        first_name TEXT NOT NULL,
-        last_name TEXT NOT NULL,
-        email TEXT NOT NULL UNIQUE,
-        phone TEXT NOT NULL,
+        employee_code TEXT NOT NULL UNIQUE CHECK (length(trim(employee_code)) > 0),
+        first_name TEXT NOT NULL CHECK (length(trim(first_name)) > 0),
+        last_name TEXT NOT NULL CHECK (length(trim(last_name)) > 0),
+        email TEXT NOT NULL UNIQUE CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$'),
+        phone TEXT NOT NULL CHECK (phone ~ '^[0-9+\\-\\s()]{6,25}$'),
         department_id INTEGER NOT NULL REFERENCES departments(id) ON DELETE RESTRICT,
-        position TEXT NOT NULL,
-        basic_salary NUMERIC(12, 2) DEFAULT '0.00' NOT NULL,
-        status TEXT DEFAULT 'active' NOT NULL,
+        position TEXT NOT NULL CHECK (length(trim(position)) > 0),
+        basic_salary NUMERIC(12, 2) DEFAULT '0.00' NOT NULL CHECK (basic_salary >= 0),
+        status TEXT DEFAULT 'active' NOT NULL CHECK (status IN ('active', 'inactive')),
         created_at TIMESTAMP DEFAULT NOW() NOT NULL,
         updated_at TIMESTAMP DEFAULT NOW() NOT NULL
       );
@@ -84,19 +84,19 @@ async function setup() {
       CREATE TABLE IF NOT EXISTS qr_codes (
         id SERIAL PRIMARY KEY,
         employee_id INTEGER NOT NULL UNIQUE REFERENCES employees(id) ON DELETE CASCADE,
-        qr_value TEXT NOT NULL UNIQUE,
+        qr_value TEXT NOT NULL UNIQUE CHECK (length(trim(qr_value)) > 0),
         generated_at TIMESTAMP DEFAULT NOW() NOT NULL,
-        status TEXT DEFAULT 'active' NOT NULL
+        status TEXT DEFAULT 'active' NOT NULL CHECK (status IN ('active', 'revoked', 'expired'))
       );
 
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
-        username TEXT NOT NULL UNIQUE,
-        password_hash TEXT NOT NULL,
+        username TEXT NOT NULL UNIQUE CHECK (length(trim(username)) >= 3),
+        password_hash TEXT NOT NULL CHECK (length(trim(password_hash)) > 0),
         role_id INTEGER NOT NULL REFERENCES roles(id) ON DELETE RESTRICT,
         employee_id INTEGER REFERENCES employees(id) ON DELETE SET NULL,
         firebase_uid TEXT,
-        status TEXT DEFAULT 'active' NOT NULL,
+        status TEXT DEFAULT 'active' NOT NULL CHECK (status IN ('active', 'inactive')),
         created_at TIMESTAMP DEFAULT NOW() NOT NULL,
         updated_at TIMESTAMP DEFAULT NOW() NOT NULL
       );
@@ -104,24 +104,24 @@ async function setup() {
       CREATE TABLE IF NOT EXISTS attendance (
         id SERIAL PRIMARY KEY,
         employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
-        attendance_date TEXT NOT NULL,
-        check_in TEXT NOT NULL,
-        check_out TEXT,
-        working_hours NUMERIC(6, 2) DEFAULT '0.00' NOT NULL,
-        overtime_hours NUMERIC(6, 2) DEFAULT '0.00' NOT NULL,
-        status TEXT DEFAULT 'Present' NOT NULL,
+        attendance_date TEXT NOT NULL CHECK (attendance_date ~ '^\\d{4}-\\d{2}-\\d{2}$'),
+        check_in TEXT NOT NULL CHECK (check_in ~ '^\\d{2}:\\d{2}(:\\d{2})?$'),
+        check_out TEXT CHECK (check_out IS NULL OR check_out ~ '^\\d{2}:\\d{2}(:\\d{2})?$'),
+        working_hours NUMERIC(6, 2) DEFAULT '0.00' NOT NULL CHECK (working_hours >= 0 AND working_hours <= 24),
+        overtime_hours NUMERIC(6, 2) DEFAULT '0.00' NOT NULL CHECK (overtime_hours >= 0 AND overtime_hours <= 24),
+        status TEXT DEFAULT 'Present' NOT NULL CHECK (status IN ('Present', 'Late', 'Early Departure', 'Overtime', 'Absent', 'Half Day', 'On Leave')),
         created_at TIMESTAMP DEFAULT NOW() NOT NULL
       );
 
       CREATE TABLE IF NOT EXISTS overtime (
         id SERIAL PRIMARY KEY,
         employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
-        overtime_date TEXT NOT NULL,
-        hours NUMERIC(6, 2) DEFAULT '0.00' NOT NULL,
-        rate_multiplier NUMERIC(4, 2) DEFAULT '1.50' NOT NULL,
-        amount NUMERIC(12, 2) DEFAULT '0.00' NOT NULL,
+        overtime_date TEXT NOT NULL CHECK (overtime_date ~ '^\\d{4}-\\d{2}-\\d{2}$'),
+        hours NUMERIC(6, 2) DEFAULT '0.00' NOT NULL CHECK (hours > 0 AND hours <= 24),
+        rate_multiplier NUMERIC(4, 2) DEFAULT '1.50' NOT NULL CHECK (rate_multiplier >= 1.0 AND rate_multiplier <= 5.0),
+        amount NUMERIC(12, 2) DEFAULT '0.00' NOT NULL CHECK (amount >= 0),
         reason TEXT,
-        status TEXT DEFAULT 'Pending' NOT NULL,
+        status TEXT DEFAULT 'Pending' NOT NULL CHECK (status IN ('Pending', 'Approved', 'Rejected')),
         approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
         approved_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT NOW() NOT NULL
@@ -130,22 +130,22 @@ async function setup() {
       CREATE TABLE IF NOT EXISTS payroll (
         id SERIAL PRIMARY KEY,
         employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
-        payroll_period TEXT NOT NULL,
-        basic_salary NUMERIC(12, 2) DEFAULT '0.00' NOT NULL,
-        overtime_amount NUMERIC(12, 2) DEFAULT '0.00' NOT NULL,
-        allowances NUMERIC(12, 2) DEFAULT '0.00' NOT NULL,
-        deductions NUMERIC(12, 2) DEFAULT '0.00' NOT NULL,
-        gross_salary NUMERIC(12, 2) DEFAULT '0.00' NOT NULL,
-        net_salary NUMERIC(12, 2) DEFAULT '0.00' NOT NULL,
-        status TEXT DEFAULT 'Pending' NOT NULL,
+        payroll_period TEXT NOT NULL CHECK (payroll_period ~ '^\\d{4}-\\d{2}$'),
+        basic_salary NUMERIC(12, 2) DEFAULT '0.00' NOT NULL CHECK (basic_salary >= 0),
+        overtime_amount NUMERIC(12, 2) DEFAULT '0.00' NOT NULL CHECK (overtime_amount >= 0),
+        allowances NUMERIC(12, 2) DEFAULT '0.00' NOT NULL CHECK (allowances >= 0),
+        deductions NUMERIC(12, 2) DEFAULT '0.00' NOT NULL CHECK (deductions >= 0),
+        gross_salary NUMERIC(12, 2) DEFAULT '0.00' NOT NULL CHECK (gross_salary >= 0),
+        net_salary NUMERIC(12, 2) DEFAULT '0.00' NOT NULL CHECK (net_salary >= 0),
+        status TEXT DEFAULT 'Pending' NOT NULL CHECK (status IN ('Draft', 'Pending', 'Processed', 'Approved', 'Paid')),
         processed_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT NOW() NOT NULL
       );
 
       CREATE TABLE IF NOT EXISTS system_settings (
         id SERIAL PRIMARY KEY,
-        setting_key TEXT NOT NULL UNIQUE,
-        setting_value TEXT NOT NULL,
+        setting_key TEXT NOT NULL UNIQUE CHECK (length(trim(setting_key)) > 0),
+        setting_value TEXT NOT NULL CHECK (length(trim(setting_value)) > 0),
         description TEXT,
         updated_at TIMESTAMP DEFAULT NOW() NOT NULL
       );

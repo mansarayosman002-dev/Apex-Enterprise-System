@@ -4,6 +4,8 @@ import { Employee, Department } from '../types/index.ts';
 import { EmployeeModal } from '../components/employees/EmployeeModal.tsx';
 import { EmployeeProfileModal } from '../components/employees/EmployeeProfileModal.tsx';
 import { EmployeeDeleteConfirmModal } from '../components/employees/EmployeeDeleteConfirmModal.tsx';
+import { EmployeeImportModal } from '../components/employees/EmployeeImportModal.tsx';
+import { PHOTO_UPDATED_EVENT, EmployeePhotoUpdateDetail, withPhotoCacheBuster } from '../utils/photoSync.ts';
 import {
   Users,
   UserPlus,
@@ -12,6 +14,7 @@ import {
   QrCode,
   Edit2,
   Download,
+  Upload,
   Building,
   Mail,
   Phone,
@@ -29,7 +32,9 @@ import {
   ShieldCheck,
   AlertCircle,
   Briefcase,
+  FileText,
 } from 'lucide-react';
+import { exportTableToCsv, exportTableToPdf } from '../utils/exportDocument.ts';
 
 export const EmployeesPage: React.FC = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -48,12 +53,38 @@ export const EmployeesPage: React.FC = () => {
 
   // Modals state
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [profileEmployeeId, setProfileEmployeeId] = useState<number | null>(null);
   const [confirmDeactivateEmp, setConfirmDeactivateEmp] = useState<Employee | null>(null);
   const [isDeactivating, setIsDeactivating] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [currency, setCurrency] = useState<string>('NLe ');
+  const [photoVersion, setPhotoVersion] = useState<number>(Date.now());
+
+  useEffect(() => {
+    const handlePhotoUpdate = (e: Event) => {
+      const detail = (e as CustomEvent<EmployeePhotoUpdateDetail>).detail;
+      if (!detail) return;
+      setEmployees((prev) =>
+        prev.map((emp) =>
+          emp.id === detail.employeeId || emp.employeeCode === detail.employeeCode
+            ? { ...emp, photoUrl: detail.photoUrl }
+            : emp
+        )
+      );
+      setPhotoVersion(Date.now());
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener(PHOTO_UPDATED_EVENT, handlePhotoUpdate);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener(PHOTO_UPDATED_EVENT, handlePhotoUpdate);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -175,31 +206,66 @@ export const EmployeesPage: React.FC = () => {
       'Status',
       'Created Date',
     ];
-    const rows = sortedEmployees.map((e) => [
-      e.employeeCode,
-      e.firstName,
-      e.lastName,
-      e.email,
-      e.phone || '',
-      e.departmentName || '',
-      e.position,
-      parseFloat(e.basicSalary.toString()).toFixed(2),
-      e.status,
-      e.createdAt ? new Date(e.createdAt).toLocaleDateString() : '',
-    ]);
+    exportTableToCsv({
+      title: 'Master Employee Roster',
+      subtitle: 'Active and archived personnel records, departmental assignments, and salary baselines',
+      filenamePrefix: 'employees_roster',
+      metadata: {
+        'Total Headcount': sortedEmployees.length,
+        'Active Headcount': sortedEmployees.filter((e) => e.status === 'Active').length,
+        'Department Filter': selectedDept ? (departments.find((d) => String(d.id) === selectedDept)?.departmentName || 'Filtered') : 'All Departments',
+        'Status Filter': selectedStatus || 'All Statuses',
+      },
+      headers: [
+        'Employee Code',
+        'First Name',
+        'Last Name',
+        'Email Address',
+        'Phone Number',
+        'Department',
+        'Position',
+        'Basic Salary (NLe)',
+        'Status',
+        'Created Date',
+      ],
+      rows: sortedEmployees.map((e) => [
+        e.employeeCode,
+        e.firstName,
+        e.lastName,
+        e.email,
+        e.phone || '',
+        e.departmentName || '',
+        e.position,
+        parseFloat(e.basicSalary.toString()).toFixed(2),
+        e.status,
+        e.createdAt ? new Date(e.createdAt).toLocaleDateString() : '',
+      ]),
+    });
+    showToast('Employee roster exported as Microsoft Excel CSV.');
+  };
 
-    const csvContent =
-      'data:text/csv;charset=utf-8,' +
-      [headers.join(','), ...rows.map((r) => r.map((cell) => `"${cell}"`).join(','))].join('\n');
-
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `employees_roster_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    showToast('Employee roster exported as CSV.');
+  const exportPDF = () => {
+    if (sortedEmployees.length === 0) return;
+    exportTableToPdf({
+      title: 'Master Employee Roster',
+      subtitle: 'Official corporate employee register and departmental allocations',
+      filenamePrefix: 'employees_roster',
+      metadata: {
+        'Total Headcount': sortedEmployees.length,
+        'Status Scope': selectedStatus || 'All Statuses',
+      },
+      headers: ['Code', 'First Name', 'Last Name', 'Department', 'Position', 'Salary (NLe)', 'Status'],
+      rows: sortedEmployees.map((e) => [
+        e.employeeCode,
+        e.firstName,
+        e.lastName,
+        e.departmentName || '',
+        e.position,
+        parseFloat(e.basicSalary.toString()).toFixed(2),
+        e.status,
+      ]),
+    });
+    showToast('Employee roster exported as official PDF document.');
   };
 
   return (
@@ -221,20 +287,40 @@ export const EmployeesPage: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-2.5 w-full sm:w-auto">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setIsImportOpen(true)}
+            className="flex items-center justify-center space-x-1.5 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/70 dark:bg-indigo-950/50 px-3 sm:px-3.5 py-2 text-xs font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 shadow-2xs transition"
+          >
+            <Upload className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+            <span className="hidden sm:inline">Upload Data (Auto-Upsert)</span>
+            <span className="sm:hidden">Upload</span>
+          </button>
           <button
             onClick={exportCSV}
-            className="flex items-center justify-center space-x-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-2xs transition"
+            title="Download formatted Excel CSV employee roster"
+            className="flex items-center justify-center space-x-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 sm:px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-2xs transition"
           >
-            <Download className="h-4 w-4 text-slate-500 dark:text-slate-400" />
-            <span>Export CSV</span>
+            <Download className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <span className="hidden sm:inline">Export CSV</span>
+            <span className="sm:hidden">CSV</span>
+          </button>
+          <button
+            onClick={exportPDF}
+            title="Download official PDF employee roster"
+            className="flex items-center justify-center space-x-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 sm:px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-2xs transition"
+          >
+            <FileText className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+            <span className="hidden sm:inline">Export PDF</span>
+            <span className="sm:hidden">PDF</span>
           </button>
           <button
             onClick={() => setIsCreateOpen(true)}
-            className="flex items-center justify-center space-x-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-indigo-700 transition"
+            className="flex items-center justify-center space-x-1.5 rounded-xl bg-indigo-600 px-3.5 sm:px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-indigo-700 transition"
           >
             <UserPlus className="h-4 w-4" />
-            <span>Add Employee</span>
+            <span className="hidden sm:inline">Add Employee</span>
+            <span className="sm:hidden">Add</span>
           </button>
         </div>
       </div>
@@ -415,8 +501,8 @@ export const EmployeesPage: React.FC = () => {
       ) : viewMode === 'table' ? (
         /* TABLE VIEW */
         <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shadow-2xs">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+          <div className="table-responsive-wrapper">
+            <table className="w-full text-left text-xs min-w-[650px]">
               <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 border-b border-slate-200/80 dark:border-slate-800">
                 <tr>
                   <th className="px-4 py-3.5 font-bold">Employee</th>
@@ -434,9 +520,26 @@ export const EmployeesPage: React.FC = () => {
                     {/* Name & Code */}
                     <td className="px-4 py-3.5">
                       <div className="flex items-center space-x-3">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-100 dark:bg-indigo-950/80 font-bold text-indigo-700 dark:text-indigo-300 shadow-2xs">
-                          {emp.firstName.charAt(0)}
-                          {emp.lastName.charAt(0)}
+                        <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800 overflow-hidden shadow-2xs border border-slate-200/80 dark:border-slate-700/80">
+                          {emp.photoUrl ? (
+                            <img
+                              src={withPhotoCacheBuster(emp.photoUrl, photoVersion) || emp.photoUrl}
+                              alt={`${emp.firstName} ${emp.lastName}`}
+                              className="h-full w-full object-cover"
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                                const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                                if (fallback) fallback.style.display = 'flex';
+                              }}
+                            />
+                          ) : null}
+                          <div
+                            style={{ display: emp.photoUrl ? 'none' : 'flex' }}
+                            className="h-full w-full items-center justify-center bg-indigo-100 dark:bg-indigo-950/80 font-bold text-indigo-700 dark:text-indigo-300 text-xs"
+                          >
+                            {emp.firstName.charAt(0)}
+                            {emp.lastName.charAt(0)}
+                          </div>
                         </div>
                         <div>
                           <p className="font-bold text-slate-900 dark:text-white">
@@ -557,9 +660,26 @@ export const EmployeesPage: React.FC = () => {
               <div>
                 <div className="flex items-start justify-between">
                   <div className="flex items-center space-x-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-100 dark:bg-indigo-950/80 font-bold text-indigo-700 dark:text-indigo-300 text-sm shadow-2xs">
-                      {emp.firstName.charAt(0)}
-                      {emp.lastName.charAt(0)}
+                    <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-100 dark:bg-slate-800 overflow-hidden shadow-xs border border-slate-200/80 dark:border-slate-700/80">
+                      {emp.photoUrl ? (
+                        <img
+                          src={withPhotoCacheBuster(emp.photoUrl, photoVersion) || emp.photoUrl}
+                          alt={`${emp.firstName} ${emp.lastName}`}
+                          className="h-full w-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                            if (fallback) fallback.style.display = 'flex';
+                          }}
+                        />
+                      ) : null}
+                      <div
+                        style={{ display: emp.photoUrl ? 'none' : 'flex' }}
+                        className="h-full w-full items-center justify-center bg-indigo-100 dark:bg-indigo-950/80 font-bold text-indigo-700 dark:text-indigo-300 text-sm"
+                      >
+                        {emp.firstName.charAt(0)}
+                        {emp.lastName.charAt(0)}
+                      </div>
                     </div>
                     <div>
                       <h3 className="font-bold text-slate-900 dark:text-white text-sm">
@@ -734,6 +854,7 @@ export const EmployeesPage: React.FC = () => {
         employeeId={profileEmployeeId}
         onRegenerateQR={loadData}
         onEdit={(emp) => setEditingEmployee(emp)}
+        onPhotoUpdated={loadData}
         currency={currency}
       />
 
@@ -743,6 +864,15 @@ export const EmployeesPage: React.FC = () => {
         onConfirm={handleToggleStatus}
         employee={confirmDeactivateEmp}
         isDeactivating={isDeactivating}
+      />
+
+      <EmployeeImportModal
+        isOpen={isImportOpen}
+        onClose={() => setIsImportOpen(false)}
+        onSuccess={() => {
+          loadData();
+          showToast('Employees synchronized to PostgreSQL 18.');
+        }}
       />
     </div>
   );

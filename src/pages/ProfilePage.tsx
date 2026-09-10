@@ -17,8 +17,16 @@ import {
   CheckCircle2,
   AlertCircle,
   RefreshCw,
+  Camera,
+  Upload,
 } from 'lucide-react';
 import { PayslipModal } from '../components/attendance/PayslipModal.tsx';
+import {
+  EmployeeIDBadge,
+  EmployeeBadgeData,
+  printEmployeeBadge,
+} from '../components/common/EmployeeIDBadge.tsx';
+import { broadcastEmployeePhotoUpdated, PHOTO_UPDATED_EVENT, EmployeePhotoUpdateDetail } from '../utils/photoSync.ts';
 
 export const ProfilePage: React.FC = () => {
   const { user } = useAuth();
@@ -27,12 +35,48 @@ export const ProfilePage: React.FC = () => {
   const [myPayroll, setMyPayroll] = useState<PayrollRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedPayslip, setSelectedPayslip] = useState<PayrollRecord | null>(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [photoFeedback, setPhotoFeedback] = useState<string | null>(null);
 
   // Password change state
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [passwordMsg, setPasswordMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [isChangingPass, setIsChangingPass] = useState(false);
+
+  useEffect(() => {
+    const handlePhotoUpdate = (e: Event) => {
+      const detail = (e as CustomEvent<EmployeePhotoUpdateDetail>).detail;
+      if (!detail) return;
+      const detId = detail.employeeId != null ? detail.employeeId.toString() : '';
+      const detCode = (detail.employeeCode || '').trim().toLowerCase();
+
+      setEmployee((prev) => {
+        if (!prev) return prev;
+        const prevId = prev.id != null ? prev.id.toString() : '';
+        const prevCode = (prev.employeeCode || '').trim().toLowerCase();
+        const matches =
+          (prevId && detId && prevId === detId) ||
+          (prevCode && detCode && prevCode === detCode) ||
+          (detId && prevCode === `emp-${detId}`) ||
+          (detId && prevCode === `emp-${detId.padStart(4, '0')}`);
+
+        if (matches) {
+          return { ...prev, photoUrl: detail.photoUrl };
+        }
+        return prev;
+      });
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener(PHOTO_UPDATED_EVENT, handlePhotoUpdate);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener(PHOTO_UPDATED_EVENT, handlePhotoUpdate);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     loadMyData();
@@ -84,6 +128,32 @@ export const ProfilePage: React.FC = () => {
     }
   };
 
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !employee) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Photo file size must be less than 5MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = reader.result as string;
+      setIsUploadingPhoto(true);
+      try {
+        const res = await api.uploadEmployeePhoto(employee.id, dataUrl);
+        setEmployee((prev) => (prev ? { ...prev, photoUrl: res.photoUrl } : null));
+        setPhotoFeedback('Photograph updated successfully.');
+        setTimeout(() => setPhotoFeedback(null), 3000);
+        broadcastEmployeePhotoUpdated(employee.id, res.photoUrl, employee.employeeCode);
+      } catch (err: any) {
+        alert(err.message || 'Failed to upload photo.');
+      } finally {
+        setIsUploadingPhoto(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleDownloadQR = () => {
     if (!employee?.qrCode?.dataUrl) return;
     const a = document.createElement('a');
@@ -93,7 +163,18 @@ export const ProfilePage: React.FC = () => {
   };
 
   const handlePrintCard = () => {
-    window.print();
+    const badgeData: EmployeeBadgeData = {
+      fullName: employee ? `${employee.firstName} ${employee.lastName}` : (user?.username || 'Staff Member'),
+      jobTitle: employee?.position || user?.roleName || 'Employee',
+      department: employee?.departmentName || 'Apex Systems',
+      employeeId: employee?.employeeCode || user?.username || 'EMP',
+      rawEmployeeId: employee?.id || user?.employeeId,
+      employeeCode: employee?.employeeCode,
+      photoUrl: employee?.photoUrl,
+      qrCodeUrl: employee?.qrCode?.dataUrl,
+      status: employee?.status,
+    };
+    printEmployeeBadge(badgeData);
   };
 
   return (
@@ -114,57 +195,76 @@ export const ProfilePage: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Col: ID Badge & Details */}
           <div className="space-y-6">
-            {/* Digital Badge Card */}
-            <div className="rounded-2xl border-2 border-slate-300 dark:border-slate-700 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-6 text-white shadow-xl text-center">
-              <div className="inline-block rounded-full bg-white/10 px-3 py-1 text-[10px] font-bold text-indigo-200 uppercase tracking-wider backdrop-blur-xs">
-                Apex Enterprise Solutions
-              </div>
-
-              {/* QR Image Box */}
-              <div className="my-5 flex flex-col items-center">
-                <div className="rounded-xl bg-white p-3 shadow-md">
-                  {employee?.qrCode?.dataUrl ? (
-                    <img
-                      src={employee.qrCode.dataUrl}
-                      alt="Personal QR"
-                      className="h-36 w-36 object-contain"
-                    />
-                  ) : (
-                    <div className="flex h-36 w-36 items-center justify-center bg-slate-100 text-slate-400">
-                      <QrCode className="h-12 w-12 text-slate-700" />
-                    </div>
-                  )}
-                </div>
-                <span className="mt-2 font-mono text-xs font-bold text-indigo-200">
-                  {employee?.employeeCode || user?.username}
+            {/* Digital Badge Card in Portrait (53.98 x 85.60 mm) */}
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-xs flex flex-col items-center">
+              <div className="w-full flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 text-xs">
+                <span className="font-semibold text-slate-800 dark:text-slate-200">
+                  Official Security Badge
+                </span>
+                <span className="font-mono text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800">
+                  53.98 × 85.60 mm
                 </span>
               </div>
 
-              <h2 className="text-lg font-bold">
-                {employee ? `${employee.firstName} ${employee.lastName}` : user?.username}
-              </h2>
-              <p className="text-xs text-indigo-300">{employee?.position || user?.roleName}</p>
-              <p className="text-[11px] text-slate-400 mt-1">{employee?.departmentName || 'Apex Systems'}</p>
+              <div className="py-3 flex justify-center w-full">
+                <EmployeeIDBadge
+                  badge={{
+                    fullName: employee ? `${employee.firstName} ${employee.lastName}` : (user?.username || 'Staff Member'),
+                    jobTitle: employee?.position || user?.roleName || 'Employee',
+                    department: employee?.departmentName || 'Apex Systems',
+                    employeeId: employee?.employeeCode || user?.username || 'EMP',
+                    rawEmployeeId: employee?.id || user?.employeeId,
+                    employeeCode: employee?.employeeCode,
+                    photoUrl: employee?.photoUrl,
+                    qrCodeUrl: employee?.qrCode?.dataUrl,
+                    status: employee?.status,
+                  }}
+                  variant="standard"
+                />
+              </div>
 
-              {/* Print / Download buttons */}
-              {employee?.qrCode?.dataUrl && (
-                <div className="mt-5 flex justify-center gap-2 print:hidden">
-                  <button
-                    onClick={handleDownloadQR}
-                    className="flex items-center space-x-1 rounded-lg bg-white/10 hover:bg-white/20 px-3 py-1.5 text-[11px] font-medium text-white transition"
-                  >
-                    <Download className="h-3 w-3" />
-                    <span>Download</span>
-                  </button>
-                  <button
-                    onClick={handlePrintCard}
-                    className="flex items-center space-x-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 px-3 py-1.5 text-[11px] font-medium text-white transition"
-                  >
-                    <Printer className="h-3 w-3" />
-                    <span>Print Card</span>
-                  </button>
+              {/* Photo Feedback Message */}
+              {photoFeedback && (
+                <div className="mt-2 w-full text-center text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 py-1.5 px-3 rounded-lg border border-emerald-200 dark:border-emerald-800">
+                  {photoFeedback}
                 </div>
               )}
+
+              {/* Action Buttons: Photo Upload, QR Download, Badge Print */}
+              <div className="mt-3 flex flex-col w-full gap-2 print:hidden pt-3 border-t border-slate-100 dark:border-slate-800">
+                {employee && (
+                  <label className="flex w-full items-center justify-center space-x-1.5 rounded-xl border border-indigo-200 dark:border-indigo-800/80 bg-indigo-50/70 dark:bg-indigo-950/40 px-3 py-2 text-xs font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 shadow-2xs transition cursor-pointer">
+                    <Camera className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+                    <span>{isUploadingPhoto ? 'Uploading Photo...' : 'Update ID Photograph'}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handlePhotoUpload}
+                      disabled={isUploadingPhoto}
+                      className="hidden"
+                    />
+                  </label>
+                )}
+
+                {employee?.qrCode?.dataUrl && (
+                  <div className="flex w-full gap-2">
+                    <button
+                      onClick={handleDownloadQR}
+                      className="flex-1 flex items-center justify-center space-x-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-2xs transition"
+                    >
+                      <Download className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+                      <span>Download QR</span>
+                    </button>
+                    <button
+                      onClick={handlePrintCard}
+                      className="flex-1 flex items-center justify-center space-x-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 text-xs font-semibold shadow-xs transition"
+                    >
+                      <Printer className="h-3.5 w-3.5 text-white" />
+                      <span>Print Badge</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Password Change Box */}

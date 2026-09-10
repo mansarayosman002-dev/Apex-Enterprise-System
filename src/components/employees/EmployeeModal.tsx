@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Department, Employee } from '../../types/index.ts';
-import { X, User, Mail, Phone, Building, Briefcase, DollarSign, Key, AlertCircle, RefreshCw, Sparkles, Check } from 'lucide-react';
+import { X, User, Mail, Phone, Building, Briefcase, DollarSign, Key, AlertCircle, RefreshCw, Sparkles, Check, Camera, Upload, Trash2 } from 'lucide-react';
 import { api } from '../../services/api.ts';
+import { broadcastEmployeePhotoUpdated } from '../../utils/photoSync.ts';
 
 interface EmployeeModalProps {
   isOpen: boolean;
@@ -32,6 +33,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
     departmentId: '',
     position: '',
     basicSalary: '',
+    photoUrl: '',
     status: 'active' as 'active' | 'inactive',
     createAccount: false,
     username: '',
@@ -39,6 +41,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
     roleId: '',
   });
 
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -58,12 +61,14 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
         departmentId: employee.departmentId ? employee.departmentId.toString() : '',
         position: employee.position || '',
         basicSalary: employee.basicSalary != null ? employee.basicSalary.toString() : '',
+        photoUrl: employee.photoUrl || '',
         status: employee.status || 'active',
         createAccount: false,
         username: '',
         password: '',
         roleId: '',
       });
+      setPhotoPreview(employee.photoUrl || null);
     } else {
       setFormData({
         employeeCode: generateCode(),
@@ -74,15 +79,35 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
         departmentId: departments[0]?.id ? departments[0].id.toString() : '',
         position: '',
         basicSalary: '4500.00',
+        photoUrl: '',
         status: 'active',
         createAccount: true,
         username: '',
         password: 'password123',
         roleId: rolesList.find((r) => r.roleName === 'Employee')?.id?.toString() || (rolesList[0]?.id?.toString() || '4'),
       });
+      setPhotoPreview(null);
     }
     setError(null);
   }, [employee, departments, isOpen, rolesList]);
+
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Photo file size must be less than 5MB.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      setPhotoPreview(dataUrl);
+      setFormData((prev) => ({ ...prev, photoUrl: dataUrl }));
+    };
+    reader.readAsDataURL(file);
+  };
 
   if (!isOpen) return null;
 
@@ -143,7 +168,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
     setIsSubmitting(true);
     try {
       if (isEdit && employee) {
-        await api.updateEmployee(employee.id, {
+        const updated = await api.updateEmployee(employee.id, {
           firstName: formData.firstName,
           lastName: formData.lastName,
           email: formData.email,
@@ -151,8 +176,12 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
           departmentId: Number(formData.departmentId),
           position: formData.position,
           basicSalary: formData.basicSalary,
+          photoUrl: formData.photoUrl || null,
           status: formData.status,
         });
+        if (updated && updated.photoUrl !== undefined) {
+          broadcastEmployeePhotoUpdated(employee.id, updated.photoUrl, updated.employeeCode || formData.employeeCode);
+        }
         onSuccess(`Employee ${formData.firstName} ${formData.lastName} updated successfully.`);
       } else {
         await api.createEmployee({
@@ -164,6 +193,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
           departmentId: Number(formData.departmentId),
           position: formData.position,
           basicSalary: formData.basicSalary,
+          photoUrl: formData.photoUrl || null,
           createAccount: formData.createAccount,
           username: formData.username || formData.email.split('@')[0],
           password: formData.password || 'password123',
@@ -210,6 +240,81 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
               <span>{error}</span>
             </div>
           )}
+
+          {/* Employee Portrait Photo Upload Card */}
+          <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 p-3.5 sm:p-4">
+            <div className="flex flex-col sm:flex-row items-center gap-4">
+              {/* Photo Preview / Avatar */}
+              <div className="relative group shrink-0">
+                <div className="h-20 w-20 sm:h-24 sm:w-24 rounded-2xl overflow-hidden border-2 border-dashed border-indigo-300 dark:border-indigo-600 bg-white dark:bg-slate-900 flex items-center justify-center shadow-xs">
+                  {photoPreview ? (
+                    <img
+                      src={photoPreview}
+                      alt="Employee Portrait"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500 text-center p-2">
+                      <Camera className="h-6 w-6 text-indigo-500/70 mb-1" />
+                      <span className="text-[10px] font-semibold">No Photo</span>
+                    </div>
+                  )}
+                </div>
+                {photoPreview && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPhotoPreview(null);
+                      setFormData({ ...formData, photoUrl: '' });
+                    }}
+                    className="absolute -top-1.5 -right-1.5 rounded-full bg-rose-600 text-white p-1 hover:bg-rose-700 shadow-md transition"
+                    title="Remove Photo"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+
+              {/* Photo Controls */}
+              <div className="flex-1 space-y-2 text-center sm:text-left">
+                <div>
+                  <label className="block text-xs font-bold text-slate-900 dark:text-white">
+                    Employee Photo
+                  </label>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Upload a professional portrait headshot of the employee (JPEG, PNG, WEBP).
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                  <label className="inline-flex items-center space-x-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 text-xs font-semibold cursor-pointer shadow-xs transition">
+                    <Upload className="h-3.5 w-3.5" />
+                    <span>{photoPreview ? 'Change Photo' : 'Upload Photo'}</span>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      onChange={handlePhotoSelect}
+                    />
+                  </label>
+
+                  {photoPreview && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPhotoPreview(null);
+                        setFormData({ ...formData, photoUrl: '' });
+                      }}
+                      className="inline-flex items-center space-x-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 transition"
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-rose-500" />
+                      <span>Remove</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/* Row 1: Code and Status */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">

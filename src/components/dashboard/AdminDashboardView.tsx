@@ -356,7 +356,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
               No recent attendance logs recorded today.
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="table-responsive-wrapper">
               <table className="w-full text-left text-xs min-w-[550px]">
                 <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
                   <tr>

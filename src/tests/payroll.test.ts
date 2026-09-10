@@ -18,17 +18,17 @@ import {
 
 export async function runPayrollTests() {
   console.log('====================================================');
-  console.log('💰 [6/9] STARTING PAYROLL ENGINE TEST SUITE');
+  console.log("[6/10] STARTING PAYROLL ENGINE TEST SUITE");
   console.log('====================================================');
   let passed = 0;
   let failed = 0;
 
   function assert(condition: boolean, testName: string, detail?: string) {
     if (condition) {
-      console.log(`  ✅ PASS: ${testName}`);
+      console.log(`  PASS: ${testName}`);
       passed++;
     } else {
-      console.error(`  ❌ FAIL: ${testName} - ${detail || 'Assertion failed'}`);
+      console.error(`  FAIL: ${testName} - ${detail || 'Assertion failed'}`);
       failed++;
     }
   }
@@ -82,8 +82,7 @@ export async function runPayrollTests() {
         overtimeRateMultiplier: 1.5,
       },
       'Draft',
-      '2026-05'
-    );
+      '2026-05');
 
     // Basic = 4400, Hourly = 4400/176 = 25, OT = 8 * 25 * 1.5 = 300, Gross = 4400 + 300 + 200 = 4900, Net = 4900 - 100 = 4800
     assert(item.hourlyRate === 25, 'Employee hourly rate is $25.00', `Got ${item.hourlyRate}`);
@@ -96,8 +95,7 @@ export async function runPayrollTests() {
   // 6. Batch Calculation & Summaries
   {
     const batch = calculateBatchPayroll(
-      [
-        {
+      [{
           employeeId: 1,
           employeeCode: 'EMP001',
           employeeName: 'Sarah Jenkins',
@@ -120,8 +118,7 @@ export async function runPayrollTests() {
           deductions: 70,
         },
       ],
-      '2026-05'
-    );
+      '2026-05');
 
     assert(batch.items.length === 2, 'Batch payroll contains 2 items');
     assert(batch.totalEmployees === 2, 'Total employees count is 2');
@@ -154,7 +151,7 @@ export async function runPayrollTests() {
     assert(preview.totalNetSalary > 0, 'previewPayrollForPeriod calculates total net salary');
 
     // Generate Draft Payroll
-    const generated = await generatePayrollForPeriod(testPeriod, { status: 'Draft' }, 'QA_ENGINEER');
+    const generated = await generatePayrollForPeriod(testPeriod, { status: 'Draft'}, 'QA_ENGINEER');
     assert(generated.length > 0, 'generatePayrollForPeriod generated database records');
 
     const firstRecord = generated[0];

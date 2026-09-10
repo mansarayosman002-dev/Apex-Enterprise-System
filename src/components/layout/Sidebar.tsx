@@ -16,6 +16,7 @@ import {
   LogOut,
   Sparkles,
   Database,
+  Bell,
   X,
 } from 'lucide-react';
 import { api } from '../../services/api.ts';
@@ -86,6 +87,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'Users',
       icon: ShieldCheck,
       roles: ['Administrator'],
+    },
+    {
+      id: 'ai-assistant',
+      label: 'AI Copilot & Hub',
+      icon: Sparkles,
+      roles: ['Administrator', 'HR Officer', 'Payroll Officer', 'Employee', 'Management'],
+    },
+    {
+      id: 'notifications',
+      label: 'Notifications',
+      icon: Bell,
+      roles: ['Administrator', 'HR Officer', 'Payroll Officer', 'Employee', 'Management'],
     },
     {
       id: 'settings',
@@ -168,7 +181,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
-                <Icon className={`h-4 w-4 ${isActive ? 'text-white' : 'text-slate-500 dark:text-slate-400'}`} />
+                {item.id === 'ai-assistant' ? (
+                  <img
+                    src="/apex-copilot-logo.png"
+                    alt="AI Copilot"
+                    className="h-4 w-4 rounded-full object-cover ring-1 ring-purple-400/50 shadow-xs"
+                  />
+                ) : (
+                  <Icon className={`h-4 w-4 ${isActive ? 'text-white' : 'text-slate-500 dark:text-slate-400'}`} />
+                )}
                 <span>{item.label}</span>
               </button>
             );
@@ -177,6 +198,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {/* Logout Button in Persistent Sidebar */}
           <button
             onClick={() => {
+              setActivePage('dashboard');
               logout();
               if (onCloseMobile) onCloseMobile();
             }}

@@ -19,9 +19,14 @@ import {
   Clock,
   ExternalLink,
   Edit2,
+  Camera,
+  Upload,
+  Trash2,
 } from 'lucide-react';
 import { api } from '../../services/api.ts';
 import { ApexLogo } from '../common/ApexLogo.tsx';
+import { EmployeeIDBadge, printEmployeeBadge } from '../common/EmployeeIDBadge.tsx';
+import { broadcastEmployeePhotoUpdated, PHOTO_UPDATED_EVENT, EmployeePhotoUpdateDetail } from '../../utils/photoSync.ts';
 
 interface EmployeeProfileModalProps {
   isOpen: boolean;
@@ -29,6 +34,7 @@ interface EmployeeProfileModalProps {
   employeeId: number | null;
   onRegenerateQR?: () => void;
   onEdit?: (employee: Employee) => void;
+  onPhotoUpdated?: () => void;
   currency?: string;
 }
 
@@ -38,20 +44,102 @@ export const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
   employeeId,
   onRegenerateQR,
   onEdit,
+  onPhotoUpdated,
   currency = 'NLe ',
 }) => {
-  const [employee, setEmployee] = useState<any | null>(null);
+  const [employee, setEmployee] = useState<Employee | null>(null);
   const [recentAttendance, setRecentAttendance] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [activeTab, setActiveTab] = useState<'badge' | 'details' | 'attendance'>('badge');
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+
+  const handleDirectPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !employee) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Photo file size must be less than 5MB.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = reader.result as string;
+      setIsUploadingPhoto(true);
+      try {
+        const res = await api.uploadEmployeePhoto(employee.id, dataUrl);
+        setEmployee((prev: any) => ({ ...prev, photoUrl: res.photoUrl }));
+        setFeedback('Employee portrait updated successfully.');
+        broadcastEmployeePhotoUpdated(employee.id, res.photoUrl, employee.employeeCode);
+        if (onPhotoUpdated) onPhotoUpdated();
+      } catch (err: any) {
+        alert(err.message || 'Failed to upload employee photo.');
+      } finally {
+        setIsUploadingPhoto(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemovePhoto = async () => {
+    if (!employee) return;
+    if (!confirm('Are you sure you want to remove this employee photo?')) return;
+
+    setIsUploadingPhoto(true);
+    try {
+      await api.updateEmployee(employee.id, { photoUrl: null });
+      setEmployee((prev: any) => ({ ...prev, photoUrl: null }));
+      setFeedback('Employee photo removed.');
+      broadcastEmployeePhotoUpdated(employee.id, null, employee.employeeCode);
+      if (onPhotoUpdated) onPhotoUpdated();
+    } catch (err: any) {
+      alert(err.message || 'Failed to remove photo.');
+    } finally {
+      setIsUploadingPhoto(false);
+    }
+  };
 
   useEffect(() => {
     if (isOpen && employeeId) {
       loadDetails(employeeId);
     }
   }, [isOpen, employeeId]);
+
+  useEffect(() => {
+    const handlePhotoUpdate = (e: Event) => {
+      const detail = (e as CustomEvent<EmployeePhotoUpdateDetail>).detail;
+      if (!detail) return;
+      setEmployee((prev: any) => {
+        if (!prev) return prev;
+        const prevId = prev.id != null ? prev.id.toString() : '';
+        const detId = detail.employeeId != null ? detail.employeeId.toString() : '';
+        const prevCode = (prev.employeeCode || '').trim().toLowerCase();
+        const detCode = (detail.employeeCode || '').trim().toLowerCase();
+
+        const matches =
+          (prevId && detId && prevId === detId) ||
+          (prevCode && detCode && prevCode === detCode) ||
+          (detId && prevCode === `emp-${detId}`) ||
+          (detId && prevCode === `emp-${detId.padStart(4, '0')}`);
+
+        if (matches) {
+          return { ...prev, photoUrl: detail.photoUrl };
+        }
+        return prev;
+      });
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener(PHOTO_UPDATED_EVENT, handlePhotoUpdate);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener(PHOTO_UPDATED_EVENT, handlePhotoUpdate);
+      }
+    };
+  }, []);
 
   const loadDetails = async (id: number) => {
     setLoading(true);
@@ -103,7 +191,18 @@ export const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
   };
 
   const handlePrintBadge = () => {
-    window.print();
+    if (!employee) return;
+    printEmployeeBadge({
+      fullName: `${employee.firstName} ${employee.lastName}`,
+      jobTitle: employee.position,
+      department: employee.departmentName || 'General Operations',
+      employeeId: employee.employeeCode,
+      rawEmployeeId: employee.id,
+      employeeCode: employee.employeeCode,
+      photoUrl: employee.photoUrl,
+      qrCodeUrl: employee.qrCode?.dataUrl,
+      status: employee.status,
+    });
   };
 
   if (!isOpen) return null;
@@ -199,92 +298,54 @@ export const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
               {/* TAB 1: BADGE */}
               {activeTab === 'badge' && (
                 <div className="space-y-4">
-                  {/* Printable ID Card */}
-                  <div className="rounded-2xl border-2 border-slate-300 dark:border-slate-700 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 p-6 text-white shadow-xl relative overflow-hidden">
-                    <div className="absolute top-0 right-0 -mr-12 -mt-12 h-40 w-40 rounded-full bg-indigo-500/10 blur-2xl pointer-events-none" />
-
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-6 relative z-10">
-                      {/* Left: Info */}
-                      <div className="space-y-3 text-center sm:text-left flex-1">
-                        <div className="flex items-center justify-center sm:justify-start">
-                          <ApexLogo size="xs" inverted={true} showSubtitle={false} />
-                        </div>
-                        <div>
-                          <h2 className="text-xl font-bold tracking-tight text-white">
-                            {employee.firstName} {employee.lastName}
-                          </h2>
-                          <p className="text-xs font-medium text-indigo-300">{employee.position}</p>
-                        </div>
-
-                        <div className="space-y-1 text-xs text-slate-300">
-                          <p className="flex items-center justify-center sm:justify-start space-x-1.5">
-                            <Building className="h-3.5 w-3.5 text-indigo-400" />
-                            <span>{employee.departmentName || 'General'}</span>
-                          </p>
-                          <p className="flex items-center justify-center sm:justify-start space-x-1.5">
-                            <Mail className="h-3.5 w-3.5 text-indigo-400" />
-                            <span>{employee.email}</span>
-                          </p>
-                          {employee.phone && (
-                            <p className="flex items-center justify-center sm:justify-start space-x-1.5">
-                              <Phone className="h-3.5 w-3.5 text-indigo-400" />
-                              <span>{employee.phone}</span>
-                            </p>
-                          )}
-                        </div>
-
-                        <div className="pt-1 flex items-center justify-center sm:justify-start space-x-2.5">
-                          <span className="rounded-lg bg-indigo-500/20 px-2.5 py-1 text-xs font-mono font-bold text-indigo-200 border border-indigo-500/30">
-                            {employee.employeeCode}
-                          </span>
-                          <span
-                            className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
-                              employee.status === 'active'
-                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                            }`}
-                          >
-                            {employee.status === 'active' ? 'Active Staff' : 'Inactive'}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Right: QR Code */}
-                      <div className="flex flex-col items-center rounded-2xl bg-white p-3.5 text-slate-900 shadow-md">
-                        {employee.qrCode?.dataUrl ? (
-                          <img
-                            src={employee.qrCode.dataUrl}
-                            alt="Employee QR Code"
-                            className="h-36 w-36 object-contain rounded-lg"
-                          />
-                        ) : (
-                          <div className="flex h-36 w-36 items-center justify-center rounded-lg bg-slate-100 text-slate-400">
-                            <QrCode className="h-12 w-12" />
-                          </div>
-                        )}
-                        <span className="mt-1 text-[10px] font-mono font-semibold text-slate-500 uppercase tracking-wider">
-                          Attendance Token
-                        </span>
-                      </div>
+                  {/* Badge Specification Header */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-100 dark:bg-slate-800/80 px-4 py-2.5 text-xs">
+                    <div className="flex items-center space-x-2">
+                      <span className="inline-block h-2 w-2 rounded-full bg-indigo-500 animate-pulse" />
+                      <span className="font-semibold text-slate-700 dark:text-slate-200">
+                        Official CR80 Security Badge
+                      </span>
                     </div>
+                    <span className="font-mono text-[11px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800">
+                      Portrait • 53.98 × 85.60 mm
+                    </span>
                   </div>
 
-                  {/* Actions for QR */}
-                  <div className="flex flex-wrap items-center justify-between gap-3 pt-2 print:hidden">
-                    <div className="flex gap-2">
+                  {/* Printable ID Card Rendered in exact portrait dimensions */}
+                  <div className="flex justify-center items-center py-2">
+                    <EmployeeIDBadge
+                      badge={{
+                        fullName: `${employee.firstName} ${employee.lastName}`,
+                        jobTitle: employee.position,
+                        department: employee.departmentName || 'General Operations',
+                        employeeId: employee.employeeCode,
+                        rawEmployeeId: employee.id,
+                        employeeCode: employee.employeeCode,
+                        photoUrl: employee.photoUrl,
+                        qrCodeUrl: employee.qrCode?.dataUrl,
+                        status: employee.status,
+                      }}
+                      variant="standard"
+                    />
+                  </div>
+
+                  {/* Actions for Badge */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-2 print:hidden border-t border-slate-100 dark:border-slate-800">
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={handlePrintBadge}
+                        className="flex items-center space-x-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 text-xs font-semibold shadow-xs transition"
+                        title="Print official CR80 portrait badge (53.98 × 85.60 mm)"
+                      >
+                        <Printer className="h-3.5 w-3.5 text-white" />
+                        <span>Print Badge (53.98 × 85.60 mm)</span>
+                      </button>
                       <button
                         onClick={handleDownloadQR}
                         className="flex items-center space-x-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-2xs transition"
                       >
                         <Download className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
                         <span>Download QR PNG</span>
-                      </button>
-                      <button
-                        onClick={handlePrintBadge}
-                        className="flex items-center space-x-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-2xs transition"
-                      >
-                        <Printer className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
-                        <span>Print Badge</span>
                       </button>
                     </div>
 
@@ -303,6 +364,88 @@ export const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
               {/* TAB 2: DETAILS */}
               {activeTab === 'details' && (
                 <div className="space-y-4">
+                  {/* Profile Header Card with Quick Photo Upload */}
+                  <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-gradient-to-r from-indigo-50/60 via-slate-50/60 to-white dark:from-indigo-950/20 dark:via-slate-900/60 dark:to-slate-900 p-4 sm:p-5">
+                    <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-5">
+                      {/* Photo with Quick Upload Action */}
+                      <div className="relative group shrink-0">
+                        <div className="h-20 w-20 sm:h-24 sm:w-24 rounded-2xl overflow-hidden border-2 border-indigo-200 dark:border-indigo-700 bg-slate-100 dark:bg-slate-800 shadow-sm flex items-center justify-center">
+                          {employee.photoUrl ? (
+                            <img
+                              src={employee.photoUrl}
+                              alt={`${employee.firstName} ${employee.lastName}`}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center font-bold text-xl text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-950/80">
+                              {employee.firstName?.charAt(0)}{employee.lastName?.charAt(0)}
+                            </div>
+                          )}
+                          {isUploadingPhoto && (
+                            <div className="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-xs">
+                              <RefreshCw className="h-6 w-6 text-white animate-spin" />
+                            </div>
+                          )}
+                        </div>
+
+                        <label
+                          className="absolute -bottom-1 -right-1 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white p-2 shadow-md cursor-pointer transition"
+                          title="Upload / Change Photo"
+                        >
+                          <Camera className="h-3.5 w-3.5" />
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            className="hidden"
+                            disabled={isUploadingPhoto}
+                            onChange={handleDirectPhotoUpload}
+                          />
+                        </label>
+                      </div>
+
+                      {/* Text info and actions */}
+                      <div className="flex-1 text-center sm:text-left space-y-1">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                          <div>
+                            <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+                              {employee.firstName} {employee.lastName}
+                            </h3>
+                            <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">
+                              {employee.position}
+                            </p>
+                          </div>
+                          <div className="flex items-center justify-center sm:justify-start gap-2">
+                            <label className="inline-flex items-center space-x-1.5 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 px-3 py-1.5 text-xs font-semibold cursor-pointer shadow-2xs transition">
+                              <Upload className="h-3.5 w-3.5" />
+                              <span>{employee.photoUrl ? 'Change Photo' : 'Upload Photo'}</span>
+                              <input
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp"
+                                className="hidden"
+                                disabled={isUploadingPhoto}
+                                onChange={handleDirectPhotoUpload}
+                              />
+                            </label>
+                            {employee.photoUrl && (
+                              <button
+                                type="button"
+                                onClick={handleRemovePhoto}
+                                disabled={isUploadingPhoto}
+                                className="inline-flex items-center space-x-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-rose-600 dark:text-rose-400 px-3 py-1.5 text-xs font-semibold transition"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                                <span>Remove</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          {employee.departmentName} &bull; Code: <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{employee.employeeCode}</span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40 p-4 space-y-3">
                       <h4 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center space-x-1.5">

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext.tsx';
 import { DarkModeToggle } from '../common/DarkModeToggle.tsx';
 import { ApexLogo } from '../common/ApexLogo.tsx';
+import { NotificationBell } from '../notifications/NotificationBell.tsx';
 import {
   ScanLine,
   User,
@@ -11,6 +12,8 @@ import {
   ChevronDown,
   Menu,
 } from 'lucide-react';
+
+import { PHOTO_UPDATED_EVENT, EmployeePhotoUpdateDetail, withPhotoCacheBuster } from '../../utils/photoSync.ts';
 
 interface NavbarProps {
   onOpenScanner: () => void;
@@ -28,6 +31,33 @@ export const Navbar: React.FC<NavbarProps> = ({
   const { user, logout } = useAuth();
   const [time, setTime] = useState<string>('');
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [userPhotoError, setUserPhotoError] = useState(false);
+  const [navPhotoVersion, setNavPhotoVersion] = useState<number>(Date.now());
+
+  useEffect(() => {
+    const handlePhotoUpdate = (e: Event) => {
+      const detail = (e as CustomEvent<EmployeePhotoUpdateDetail>).detail;
+      if (!detail) return;
+      if (
+        user &&
+        (user.employeeId === detail.employeeId ||
+          user.employee?.id === detail.employeeId ||
+          user.employee?.employeeCode === detail.employeeCode)
+      ) {
+        setNavPhotoVersion(Date.now());
+        setUserPhotoError(false);
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener(PHOTO_UPDATED_EVENT, handlePhotoUpdate);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener(PHOTO_UPDATED_EVENT, handlePhotoUpdate);
+      }
+    };
+  }, [user]);
 
   useEffect(() => {
     const updateTime = () => {
@@ -40,6 +70,18 @@ export const Navbar: React.FC<NavbarProps> = ({
     const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
   }, []);
+
+  const rawUserPhoto =
+    user?.photoUrl ||
+    user?.employee?.photoUrl ||
+    (user?.employee?.employeeCode ? `/uploads/employees/${user.employee.employeeCode}.jpg` : null) ||
+    (user?.employeeId ? `/uploads/employees/EMP-${user.employeeId}.jpg` : null);
+
+  const userPhoto = withPhotoCacheBuster(rawUserPhoto, navPhotoVersion);
+
+  const userInitials = user?.employee
+    ? `${user.employee.firstName.charAt(0)}${user.employee.lastName.charAt(0)}`.toUpperCase()
+    : (user?.username?.substring(0, 2).toUpperCase() || 'U');
 
   const getRoleBadgeColor = (roleName?: string) => {
     switch (roleName) {
@@ -88,6 +130,9 @@ export const Navbar: React.FC<NavbarProps> = ({
         {/* Dark Mode Toggle Button */}
         <DarkModeToggle />
 
+        {/* Notifications Center */}
+        <NotificationBell onOpenCenter={() => setActivePage('notifications')} />
+
         {/* Quick QR Scanner Launch Button */}
         <button
           onClick={onOpenScanner}
@@ -114,10 +159,19 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="relative">
           <button
             onClick={() => setShowUserMenu(!showUserMenu)}
-            className="flex items-center space-x-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/80 p-1.5 pr-2 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+            className="flex items-center space-x-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/80 p-1.5 pr-2 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition shadow-2xs"
           >
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-100 dark:bg-indigo-950/80 font-semibold text-indigo-700 dark:text-indigo-400">
-              {user?.username?.charAt(0).toUpperCase() || 'U'}
+            <div className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-lg overflow-hidden bg-indigo-100 dark:bg-indigo-950/80 font-semibold text-indigo-700 dark:text-indigo-400 ring-1 ring-slate-200 dark:ring-slate-700">
+              {userPhoto && !userPhotoError ? (
+                <img
+                  src={userPhoto}
+                  alt={user?.username || 'User'}
+                  className="h-full w-full object-cover object-top"
+                  onError={() => setUserPhotoError(true)}
+                />
+              ) : (
+                <span>{userInitials}</span>
+              )}
             </div>
             <span className="font-medium text-slate-800 dark:text-slate-200 max-w-[100px] sm:max-w-[120px] truncate hidden sm:inline-block">
               {user?.employee ? `${user.employee.firstName}` : user?.username}
@@ -126,15 +180,29 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
 
           {showUserMenu && (
-            <div className="absolute right-0 mt-2 w-56 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-1.5 shadow-xl z-50 animate-in fade-in zoom-in-95">
-              <div className="border-b border-slate-100 dark:border-slate-700 px-4 py-2.5">
-                <p className="text-xs font-bold text-slate-900 dark:text-white">
-                  {user?.employee ? `${user.employee.firstName} ${user.employee.lastName}` : user?.username}
-                </p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{user?.username}</p>
-                <span className="mt-1 inline-block text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 uppercase">
-                  {user?.roleName}
-                </span>
+            <div className="absolute right-0 mt-2 w-60 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 py-1.5 shadow-xl z-50 animate-in fade-in zoom-in-95">
+              <div className="border-b border-slate-100 dark:border-slate-700 px-4 py-3 flex items-center space-x-3">
+                <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl overflow-hidden bg-indigo-100 dark:bg-indigo-950/80 font-semibold text-indigo-700 dark:text-indigo-400 ring-1 ring-indigo-500/30 dark:ring-indigo-400/30 shadow-xs">
+                  {userPhoto && !userPhotoError ? (
+                    <img
+                      src={userPhoto}
+                      alt={user?.username || 'User'}
+                      className="h-full w-full object-cover object-top"
+                      onError={() => setUserPhotoError(true)}
+                    />
+                  ) : (
+                    <span>{userInitials}</span>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                    {user?.employee ? `${user.employee.firstName} ${user.employee.lastName}` : user?.username}
+                  </p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{user?.username}</p>
+                  <span className="mt-0.5 inline-block text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 uppercase">
+                    {user?.roleName}
+                  </span>
+                </div>
               </div>
 
               <button
@@ -150,6 +218,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               <button
                 onClick={() => {
+                  setActivePage('dashboard');
                   logout();
                   setShowUserMenu(false);
                 }}

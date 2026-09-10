@@ -1,5 +1,7 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
+import fs from 'fs';
+import path from 'path';
 import { db } from '../db/index.ts';
 import { users, roles, employees, qrCodes } from '../db/schema.ts';
 import { eq } from 'drizzle-orm';
@@ -31,6 +33,7 @@ import {
   regenerateEmployeeQRCode,
   getAllQRCodes,
   processQRScan,
+  processOfflineBatchSync,
   getAttendanceList,
   createManualAttendance,
   updateAttendanceRecord,
@@ -49,6 +52,9 @@ import {
   deletePayrollRecord,
   processAllPayrollForPeriod,
   getDashboardStats,
+  getDatabaseStatus,
+  bulkImportEmployees,
+  bulkImportAttendance,
 } from './dbServices.ts';
 import { adminAuth } from '../lib/firebase-admin.ts';
 import { runDatabaseSeed } from './seed.ts';
@@ -162,6 +168,11 @@ apiRouter.post('/auth/login', async (req: Request, res: Response) => {
 
     await recordAudit(user.id, user.username, 'LOGIN_SUCCESS', 'auth', user.id.toString(), 'User authenticated via password credentials');
 
+    const photoUrl =
+      employeeData?.photoUrl ||
+      (employeeData?.employeeCode ? `/uploads/employees/${employeeData.employeeCode}.jpg` : null) ||
+      (user.employeeId ? `/uploads/employees/EMP-${user.employeeId}.jpg` : null);
+
     return res.json({
       user: {
         id: user.id,
@@ -170,6 +181,7 @@ apiRouter.post('/auth/login', async (req: Request, res: Response) => {
         roleName: user.roleName,
         employeeId: user.employeeId,
         employee: employeeData,
+        photoUrl,
         status: user.status,
       },
       token,
@@ -258,10 +270,16 @@ apiRouter.post('/auth/firebase-login', async (req: Request, res: Response) => {
 
     await recordAudit(existingUser.id, existingUser.username, 'LOGIN_SUCCESS_OAUTH', 'auth', existingUser.id.toString(), 'User authenticated via Google Identity');
 
+    const photoUrl =
+      employeeData?.photoUrl ||
+      (employeeData?.employeeCode ? `/uploads/employees/${employeeData.employeeCode}.jpg` : null) ||
+      (existingUser.employeeId ? `/uploads/employees/EMP-${existingUser.employeeId}.jpg` : null);
+
     return res.json({
       user: {
         ...existingUser,
         employee: employeeData,
+        photoUrl,
       },
       token,
     });
@@ -301,9 +319,15 @@ apiRouter.get('/auth/me', authenticateToken, async (req: AuthRequest, res: Respo
       employeeData = await getEmployeeById(user.employeeId);
     }
 
+    const photoUrl =
+      employeeData?.photoUrl ||
+      (employeeData?.employeeCode ? `/uploads/employees/${employeeData.employeeCode}.jpg` : null) ||
+      (user.employeeId ? `/uploads/employees/EMP-${user.employeeId}.jpg` : null);
+
     res.json({
       ...user,
       employee: employeeData,
+      photoUrl,
     });
   } catch (error: any) {
     res.status(500).json({ error: 'Unable to retrieve user profile.' });
@@ -498,12 +522,52 @@ apiRouter.get('/employees/:id', authenticateToken, async (req: AuthRequest, res:
   }
 });
 
+// Helper to store base64 uploaded photo to public/uploads/employees/
+function saveBase64EmployeePhoto(photoData: string, identifier: string): string | null {
+  if (!photoData || typeof photoData !== 'string') return null;
+  if (!photoData.startsWith('data:image/')) return photoData;
+
+  const matches = photoData.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+  if (!matches || matches.length !== 3) return null;
+
+  let ext = matches[1].toLowerCase();
+  if (ext === 'jpeg') ext = 'jpg';
+  const base64Buffer = Buffer.from(matches[2], 'base64');
+
+  const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'employees');
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+
+  const cleanIdentifier = identifier.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const filename = `${cleanIdentifier}-${Date.now()}.${ext}`;
+  const filePath = path.join(uploadDir, filename);
+  fs.writeFileSync(filePath, base64Buffer);
+
+  // Also defensively update base filename (e.g. EMP-1001.jpg)
+  try {
+    const baseFilePath = path.join(uploadDir, `${cleanIdentifier}.${ext}`);
+    fs.writeFileSync(baseFilePath, base64Buffer);
+  } catch {
+    // Ignore if file is locked
+  }
+
+  return `/uploads/employees/${filename}`;
+}
+
 apiRouter.post('/employees', authenticateToken, authorizeRoles('Administrator', 'HR Officer'), async (req: AuthRequest, res: Response) => {
   try {
-    const { employeeCode, firstName, lastName, email, phone, departmentId, position, basicSalary, createAccount, username, password, roleId } = req.body;
+    const { employeeCode, firstName, lastName, email, phone, departmentId, position, basicSalary, photoUrl, photoData, createAccount, username, password, roleId } = req.body;
 
     if (!employeeCode || !firstName || !lastName || !email || !departmentId || !position) {
       return res.status(400).json({ error: 'Please complete all required employee information.' });
+    }
+
+    let resolvedPhotoUrl = photoUrl;
+    const incomingData = photoData || (photoUrl && photoUrl.startsWith('data:image/') ? photoUrl : null);
+    if (incomingData) {
+      const savedPath = saveBase64EmployeePhoto(incomingData, employeeCode);
+      if (savedPath) resolvedPhotoUrl = savedPath;
     }
 
     const result = await createEmployee({
@@ -515,6 +579,7 @@ apiRouter.post('/employees', authenticateToken, authorizeRoles('Administrator', 
       departmentId: Number(departmentId),
       position,
       basicSalary: basicSalary || '0.00',
+      photoUrl: resolvedPhotoUrl,
       createAccount,
       username,
       password,
@@ -528,14 +593,88 @@ apiRouter.post('/employees', authenticateToken, authorizeRoles('Administrator', 
   }
 });
 
+apiRouter.post('/employees/bulk-import', authenticateToken, authorizeRoles('Administrator', 'HR Officer'), async (req: AuthRequest, res: Response) => {
+  try {
+    const rawItems = Array.isArray(req.body) ? req.body : req.body.employees;
+    if (!rawItems || !Array.isArray(rawItems) || rawItems.length === 0) {
+      return res.status(400).json({ error: 'Please provide an array of employee records to upload.' });
+    }
+
+    const result = await bulkImportEmployees(rawItems, req.user?.username || 'HR');
+    res.json(result);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to bulk import employees' });
+  }
+});
+
 apiRouter.put('/employees/:id', authenticateToken, authorizeRoles('Administrator', 'HR Officer'), async (req: AuthRequest, res: Response) => {
   try {
     const id = parseInt(req.params.id, 10);
-    const updated = await updateEmployee(id, req.body);
+    const updatePayload = { ...req.body };
+
+    const incomingPhoto = updatePayload.photoData || (updatePayload.photoUrl && updatePayload.photoUrl.startsWith('data:image/') ? updatePayload.photoUrl : null);
+    if (incomingPhoto) {
+      const emp = await getEmployeeById(id);
+      const code = emp?.employeeCode || `EMP-${id}`;
+      const savedPath = saveBase64EmployeePhoto(incomingPhoto, code);
+      if (savedPath) {
+        updatePayload.photoUrl = savedPath;
+      }
+      delete updatePayload.photoData;
+    }
+
+    const updated = await updateEmployee(id, updatePayload);
     await recordAudit(req.user?.id || null, req.user?.username || 'HR', 'EMPLOYEE_UPDATED', 'employees', id.toString(), `Updated employee ID ${id}`);
     res.json(updated);
   } catch (error: any) {
     res.status(400).json({ error: error.message || 'Failed to update employee' });
+  }
+});
+
+// Dedicated photo upload and update endpoint for single-click employee photo updates
+apiRouter.post('/employees/:id/photo', authenticateToken, authorizeRoles('Administrator', 'HR Officer'), async (req: AuthRequest, res: Response) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const { photoData, photoUrl } = req.body;
+
+    const emp = await getEmployeeById(id);
+    if (!emp) {
+      return res.status(404).json({ error: 'Employee record not found.' });
+    }
+
+    let finalPhotoUrl = photoUrl;
+    const incomingData = photoData || (photoUrl && photoUrl.startsWith('data:image/') ? photoUrl : null);
+
+    if (incomingData) {
+      const saved = saveBase64EmployeePhoto(incomingData, emp.employeeCode);
+      if (!saved) {
+        return res.status(400).json({ error: 'Failed to process image. Please upload a valid JPEG, PNG, or WEBP image file.' });
+      }
+      finalPhotoUrl = saved;
+    } else if (photoUrl && (photoUrl.startsWith('http://') || photoUrl.startsWith('https://') || photoUrl.startsWith('/uploads/'))) {
+      finalPhotoUrl = photoUrl.trim();
+    } else {
+      return res.status(400).json({ error: 'Please provide either photoData (image file) or a valid photoUrl.' });
+    }
+
+    const updated = await updateEmployee(id, { photoUrl: finalPhotoUrl });
+    await recordAudit(
+      req.user?.id || null,
+      req.user?.username || 'HR',
+      'EMPLOYEE_PHOTO_UPDATED',
+      'employees',
+      id.toString(),
+      `Updated photo for employee ${emp.employeeCode} (${emp.firstName} ${emp.lastName})`
+    );
+
+    res.json({
+      success: true,
+      message: 'Employee photo updated successfully.',
+      photoUrl: finalPhotoUrl,
+      employee: updated,
+    });
+  } catch (error: any) {
+    res.status(400).json({ error: error.message || 'Failed to update employee photo.' });
   }
 });
 
@@ -627,6 +766,34 @@ apiRouter.post('/attendance/scan', async (req: Request, res: Response) => {
   }
 });
 
+// Offline Attendance Batch Sync API (called when terminal restores connectivity)
+apiRouter.post('/attendance/sync-offline', async (req: Request, res: Response) => {
+  try {
+    const { punches } = req.body;
+    if (!Array.isArray(punches) || punches.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No offline punches array provided.',
+        synced: 0,
+        failed: 0,
+        results: [],
+      });
+    }
+
+    const syncResult = await processOfflineBatchSync(punches);
+    return res.json(syncResult);
+  } catch (error: any) {
+    console.error('Offline batch sync route error:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Server error processing offline batch sync.',
+      synced: 0,
+      failed: 0,
+      results: [],
+    });
+  }
+});
+
 apiRouter.get('/attendance', authenticateToken, async (req: AuthRequest, res: Response) => {
   try {
     const date = req.query.date as string;
@@ -653,6 +820,20 @@ apiRouter.get('/attendance', authenticateToken, async (req: AuthRequest, res: Re
     res.json(records);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+apiRouter.post('/attendance/bulk-import', authenticateToken, authorizeRoles('Administrator', 'HR Officer'), async (req: AuthRequest, res: Response) => {
+  try {
+    const rawItems = Array.isArray(req.body) ? req.body : req.body.records;
+    if (!rawItems || !Array.isArray(rawItems) || rawItems.length === 0) {
+      return res.status(400).json({ error: 'Please provide an array of attendance records to upload.' });
+    }
+
+    const result = await bulkImportAttendance(rawItems, req.user?.username || 'HR');
+    res.json(result);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to bulk import attendance records' });
   }
 });
 
@@ -996,7 +1177,7 @@ apiRouter.get('/reports/attendance', authenticateToken, authorizeRoles('Administ
     const overtimeCount = records.filter((r) => r.status === 'Overtime' || parseFloat(r.overtimeHours.toString()) > 0).length;
     const earlyDepartureCount = records.filter((r) => r.status === 'Early Departure').length;
     const absentCount = records.filter((r) => r.status === 'Absent').length;
-    
+
     const totalWorkingHours = records.reduce((sum, r) => sum + parseFloat(r.workingHours.toString() || '0'), 0);
     const totalOvertimeHours = records.reduce((sum, r) => sum + parseFloat(r.overtimeHours.toString() || '0'), 0);
     const averageDailyHours = totalRecords > 0 ? totalWorkingHours / totalRecords : 0;
@@ -1129,3 +1310,16 @@ apiRouter.post('/seed', authenticateToken, authorizeRoles('Administrator'), asyn
     res.status(500).json({ error: error.message });
   }
 });
+
+// ==========================================
+// 10. POSTGRESQL 18 DATABASE STATUS & DIAGNOSTICS
+// ==========================================
+apiRouter.get('/database/status', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const status = await getDatabaseStatus();
+    res.json(status);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || 'Failed to query PostgreSQL database status' });
+  }
+});
+

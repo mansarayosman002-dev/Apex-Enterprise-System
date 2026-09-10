@@ -12,8 +12,12 @@ import {
   User,
   Building,
   CheckCircle2,
+  Upload,
 } from 'lucide-react';
 import { ManualAttendanceModal } from '../components/attendance/ManualAttendanceModal.tsx';
+import { AttendanceImportModal } from '../components/attendance/AttendanceImportModal.tsx';
+import { exportTableToCsv, exportTableToPdf } from '../utils/exportDocument.ts';
+import { FileText } from 'lucide-react';
 
 interface AttendancePageProps {
   onOpenScanner: () => void;
@@ -27,7 +31,10 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ onOpenScanner })
   const [filterDept, setFilterDept] = useState<string>('');
   const [filterStatus, setFilterStatus] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
+
+  // Modals
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -57,31 +64,56 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ onOpenScanner })
 
   const exportCSV = () => {
     if (attendance.length === 0) return;
-    const headers = ['Employee Code', 'Employee Name', 'Department', 'Date', 'Check In', 'Check Out', 'Working Hours', 'Overtime Hours', 'Status', 'Notes'];
-    const rows = attendance.map((a) => [
-      a.employeeCode,
-      a.employeeName,
-      a.departmentName || '',
-      a.attendanceDate,
-      a.checkIn,
-      a.checkOut || '',
-      a.workingHours,
-      a.overtimeHours,
-      a.status,
-      a.notes || '',
-    ]);
+    exportTableToCsv({
+      title: 'Attendance Tracking Ledger',
+      subtitle: 'Real-time automated check-in timestamps, working hours, and overtime computation',
+      filenamePrefix: 'attendance_ledger',
+      metadata: {
+        'Filter Date': filterDate || 'All Dates',
+        'Filter Department': departments.find((d) => String(d.id) === filterDept)?.departmentName || 'All Departments',
+        'Filter Status': filterStatus || 'All Statuses',
+        'Total Headcount': attendance.length,
+      },
+      headers: ['Employee Code', 'Employee Name', 'Department', 'Date', 'Check In', 'Check Out', 'Working Hours', 'Overtime Hours', 'Status', 'Notes'],
+      rows: attendance.map((a) => [
+        a.employeeCode,
+        a.employeeName,
+        a.departmentName || '',
+        a.attendanceDate,
+        a.checkIn,
+        a.checkOut || '',
+        a.workingHours,
+        a.overtimeHours,
+        a.status,
+        a.notes || '',
+      ]),
+    });
+  };
 
-    const csvContent =
-      'data:text/csv;charset=utf-8,' +
-      [headers.join(','), ...rows.map((r) => r.map((cell) => `"${cell}"`).join(','))].join('\n');
-
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `attendance_ledger_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const exportPDF = () => {
+    if (attendance.length === 0) return;
+    exportTableToPdf({
+      title: 'Attendance Tracking Ledger',
+      subtitle: 'Real-time automated check-in timestamps, working hours, and overtime computation',
+      filenamePrefix: 'attendance_ledger',
+      metadata: {
+        'Date': filterDate || 'All Dates',
+        'Department': departments.find((d) => String(d.id) === filterDept)?.departmentName || 'All Departments',
+        'Status': filterStatus || 'All Statuses',
+      },
+      headers: ['Code', 'Employee Name', 'Department', 'Date', 'In', 'Out', 'Hours', 'OT', 'Status'],
+      rows: attendance.map((a) => [
+        a.employeeCode,
+        a.employeeName,
+        a.departmentName || '',
+        a.attendanceDate,
+        a.checkIn,
+        a.checkOut || '-',
+        a.workingHours,
+        a.overtimeHours,
+        a.status,
+      ]),
+    });
   };
 
   return (
@@ -95,27 +127,49 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ onOpenScanner })
           </p>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-2.5 w-full sm:w-auto">
+        {/* Actions */}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setIsImportModalOpen(true)}
+            className="flex items-center justify-center space-x-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 sm:px-3.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-2xs transition"
+          >
+            <Upload className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <span className="hidden sm:inline">Upload Attendance (Auto-Upsert)</span>
+            <span className="sm:hidden">Upload</span>
+          </button>
           <button
             onClick={exportCSV}
-            className="flex items-center justify-center space-x-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-2xs transition"
+            title="Download formatted Excel CSV ledger"
+            className="flex items-center justify-center space-x-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 sm:px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-2xs transition"
           >
-            <Download className="h-4 w-4 text-slate-500 dark:text-slate-400" />
-            <span>Export CSV</span>
+            <Download className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <span className="hidden sm:inline">Export CSV</span>
+            <span className="sm:hidden">CSV</span>
+          </button>
+          <button
+            onClick={exportPDF}
+            title="Download official PDF attendance ledger"
+            className="flex items-center justify-center space-x-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 sm:px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-2xs transition"
+          >
+            <FileText className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+            <span className="hidden sm:inline">Export PDF</span>
+            <span className="sm:hidden">PDF</span>
           </button>
           <button
             onClick={() => setIsManualModalOpen(true)}
-            className="flex items-center justify-center space-x-1.5 rounded-xl border border-indigo-200 dark:border-indigo-900/60 bg-indigo-50 dark:bg-indigo-950/60 px-3.5 py-2 text-xs font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition"
+            className="flex items-center justify-center space-x-1.5 rounded-xl border border-indigo-200 dark:border-indigo-900/60 bg-indigo-50 dark:bg-indigo-950/60 px-3 py-2 sm:px-3.5 text-xs font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition"
           >
             <Plus className="h-4 w-4" />
-            <span>Manual Entry</span>
+            <span className="hidden sm:inline">Manual Entry</span>
+            <span className="sm:hidden">Manual</span>
           </button>
           <button
             onClick={onOpenScanner}
-            className="flex items-center justify-center space-x-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-indigo-700 transition"
+            className="flex items-center justify-center space-x-1.5 rounded-xl bg-indigo-600 px-3.5 sm:px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-indigo-700 transition"
           >
             <ScanLine className="h-4 w-4" />
-            <span>Open Terminal Scanner</span>
+            <span className="hidden sm:inline">Open Terminal Scanner</span>
+            <span className="sm:hidden">Scanner</span>
           </button>
         </div>
       </div>
@@ -259,7 +313,7 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ onOpenScanner })
             </div>
 
             {/* Desktop Table View (hidden on mobile, visible on md+) */}
-            <div className="hidden md:block overflow-x-auto">
+            <div className="hidden md:block table-responsive-wrapper">
               <table className="w-full text-left text-xs min-w-[700px]">
                 <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
                   <tr>
@@ -335,6 +389,13 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ onOpenScanner })
         onClose={() => setIsManualModalOpen(false)}
         onSuccess={loadData}
         employees={employees}
+      />
+
+      {/* Attendance Bulk Import Modal */}
+      <AttendanceImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onSuccess={loadData}
       />
     </div>
   );

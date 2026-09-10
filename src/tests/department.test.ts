@@ -10,17 +10,17 @@ import { eq } from 'drizzle-orm';
 
 export async function runDepartmentTests() {
   console.log('====================================================');
-  console.log('🏢 [3/9] STARTING DEPARTMENT TEST SUITE');
+  console.log("[3/10] STARTING DEPARTMENT TEST SUITE");
   console.log('====================================================');
   let passed = 0;
   let failed = 0;
 
   function assert(condition: boolean, testName: string, detail?: string) {
     if (condition) {
-      console.log(`  ✅ PASS: ${testName}`);
+      console.log(`  PASS: ${testName}`);
       passed++;
     } else {
-      console.error(`  ❌ FAIL: ${testName} - ${detail || 'Assertion failed'}`);
+      console.error(`  FAIL: ${testName} - ${detail || 'Assertion failed'}`);
       failed++;
     }
   }
@@ -78,7 +78,7 @@ export async function runDepartmentTests() {
   // 5. Delete Department With Assigned Employees Protection
   try {
     // Find department with existing employees (e.g. IT or Engineering)
-    const [deptWithEmps] = await db
+    const [deptWithEmps]= await db
       .select({ id: departments.id, name: departments.departmentName })
       .from(departments)
       .innerJoin(employees, eq(departments.id, employees.departmentId))

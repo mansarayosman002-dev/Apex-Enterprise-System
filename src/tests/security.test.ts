@@ -6,26 +6,25 @@ import { getEmployees, getEmployeeById, getUsers } from '../server/dbServices.ts
 
 export async function runSecurityTests() {
   console.log('====================================================');
-  console.log('🔒 [8/9] STARTING SECURITY & VULNERABILITY TEST SUITE');
+  console.log("[8/10] STARTING SECURITY & VULNERABILITY TEST SUITE");
   console.log('====================================================');
   let passed = 0;
   let failed = 0;
 
   function assert(condition: boolean, testName: string, detail?: string) {
     if (condition) {
-      console.log(`  ✅ PASS: ${testName}`);
+      console.log(`  PASS: ${testName}`);
       passed++;
     } else {
-      console.error(`  ❌ FAIL: ${testName} - ${detail || 'Assertion failed'}`);
+      console.error(`  FAIL: ${testName} - ${detail || 'Assertion failed'}`);
       failed++;
     }
   }
 
   // 1. SQL Injection Resilience (Parameterized Query Testing)
   try {
-    const maliciousSearchPayloads = [
-      "' OR '1'='1",
-      "admin' --",
+    const maliciousSearchPayloads = ["'OR '1'='1",
+      "admin'--",
       "'; DROP TABLE employees; --",
       "1; SELECT * FROM users;",
       "UNION SELECT username, password_hash FROM users --",
@@ -39,7 +38,7 @@ export async function runSecurityTests() {
     }
 
     // Verify employees table still intact and undamaged
-    const [count] = await db.select({ c: sql<number>`count(*)::int` }).from(employees);
+    const [count]= await db.select({ c: sql<number>`count(*)::int` }).from(employees);
     assert((count?.c || 0) > 0, 'Database tables intact after SQL injection payloads');
   } catch (e: any) {
     assert(false, 'SQL injection resilience check', e.message);
@@ -49,7 +48,7 @@ export async function runSecurityTests() {
   try {
     const userList = await getUsers();
     assert(userList.length > 0, 'getUsers returns user list');
-    const hasPasswordHash = userList.some((u: any) => 'passwordHash' in u || 'password' in u);
+    const hasPasswordHash = userList.some((u: any) => 'passwordHash'in u || 'password'in u);
     assert(!hasPasswordHash, 'Password hashes and plaintext passwords are NOT exposed in user listings');
   } catch (e: any) {
     assert(false, 'Sensitive data exposure check', e.message);
@@ -86,7 +85,7 @@ export async function runSecurityTests() {
   // 5. Mass Assignment / Privilege Escalation Defense
   try {
     // Verify that updating employee cannot directly overwrite system role or admin flags
-    const [firstEmp] = await db.select().from(employees).limit(1);
+    const [firstEmp]= await db.select().from(employees).limit(1);
     if (firstEmp) {
       // Simulate input payload trying to inject roleId or isAdmin into employee object
       const safeKeys = ['firstName', 'lastName', 'phone', 'departmentId', 'position', 'basicSalary', 'status'];
@@ -99,7 +98,7 @@ export async function runSecurityTests() {
       
       const filteredPayload: any = {};
       for (const k of safeKeys) {
-        if (payload[k] !== undefined) filteredPayload[k] = payload[k];
+        if (payload[k]!== undefined) filteredPayload[k]= payload[k];
       }
 
       assert(filteredPayload.roleId === undefined, 'Mass assignment: roleId stripped from employee update');

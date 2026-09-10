@@ -455,6 +455,7 @@ export const DepartmentsPage: React.FC = () => {
         onClose={() => setViewEmployeeId(null)}
         employeeId={viewEmployeeId}
         onRegenerateQR={loadDepartments}
+        onPhotoUpdated={loadDepartments}
       />
     </div>
   );

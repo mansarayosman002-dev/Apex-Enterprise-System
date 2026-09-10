@@ -31,6 +31,18 @@ import {
   EmployeePayrollInput,
   BatchPayrollSummary,
 } from './payrollEngine.ts';
+import { NotificationService } from '../notifications/notification.service.ts';
+import {
+  validateEmployeeInput,
+  validateAttendanceInput,
+  validateOvertimeInput,
+  validatePayrollInput,
+  validateDepartmentInput,
+  validateUserInput,
+  EMAIL_REGEX,
+  DATE_REGEX,
+  TIME_REGEX,
+} from './validation.ts';
 
 // ----------------------------------------------------
 // System Settings Service
@@ -59,6 +71,20 @@ export async function getSettingsMap(): Promise<SystemSettings> {
   } catch (error) {
     console.error('Failed to get settings, using defaults:', error);
     return defaults;
+  }
+}
+
+export async function getCompanyKnowledge(): Promise<Record<string, string>> {
+  try {
+    const list = await db.select().from(systemSettings);
+    const map: Record<string, string> = {};
+    for (const item of list) {
+      map[item.settingKey] = item.settingValue;
+    }
+    return map;
+  } catch (err) {
+    console.error('Failed to load company knowledge:', err);
+    return {};
   }
 }
 
@@ -138,11 +164,9 @@ export async function createUser(data: {
   roleId: number;
   employeeId?: number | null;
 }) {
-  if (!data.username || !data.password) {
-    throw new Error('Username and password are required.');
-  }
-  if (data.password.length < 6) {
-    throw new Error('Password must be at least 6 characters long.');
+  const val = validateUserInput(data);
+  if (!val.isValid) {
+    throw new Error(val.errors.join(' '));
   }
 
   const hashedPassword = await bcrypt.hash(data.password, 10);
@@ -171,20 +195,22 @@ export async function updateUser(
     password?: string;
   }
 ) {
+  const val = validateUserInput(data);
+  if (!val.isValid) {
+    throw new Error(val.errors.join(' '));
+  }
+
   const updateData: any = {};
   if (data.roleId !== undefined) updateData.roleId = data.roleId;
   if (data.employeeId !== undefined) updateData.employeeId = data.employeeId;
   if (data.status !== undefined) updateData.status = data.status;
   if (data.password) {
-    if (data.password.length < 6) {
-      throw new Error('Password must be at least 6 characters long.');
-    }
     updateData.passwordHash = await bcrypt.hash(data.password, 10);
   }
 
   const [updated] = await db.update(users).set(updateData).where(eq(users.id, id)).returning();
   if (!updated) throw new Error('User not found.');
-  
+
   const { passwordHash, ...safeUser } = updated;
   return safeUser;
 }
@@ -199,7 +225,7 @@ export async function deleteUser(id: number) {
 // ----------------------------------------------------
 export async function getDepartments() {
   const depts = await db.select().from(departments).orderBy(departments.id);
-  
+
   // Calculate employee counts per department
   const empCounts = await db
     .select({
@@ -218,6 +244,11 @@ export async function getDepartments() {
 }
 
 export async function createDepartment(name: string, description?: string) {
+  const val = validateDepartmentInput({ departmentName: name, description });
+  if (!val.isValid) {
+    throw new Error(val.errors.join(' '));
+  }
+
   const trimmed = name.trim();
   const [existing] = await db
     .select({ id: departments.id })
@@ -239,6 +270,11 @@ export async function createDepartment(name: string, description?: string) {
 }
 
 export async function updateDepartment(id: number, name: string, description?: string) {
+  const val = validateDepartmentInput({ departmentName: name, description });
+  if (!val.isValid) {
+    throw new Error(val.errors.join(' '));
+  }
+
   const trimmed = name.trim();
   const [existing] = await db
     .select({ id: departments.id })
@@ -291,6 +327,7 @@ export async function getEmployees(filters?: { search?: string; departmentId?: n
       departmentId: employees.departmentId,
       departmentName: departments.departmentName,
       position: employees.position,
+      photoUrl: employees.photoUrl,
       basicSalary: employees.basicSalary,
       status: employees.status,
       createdAt: employees.createdAt,
@@ -326,7 +363,7 @@ export async function getEmployees(filters?: { search?: string; departmentId?: n
       if (emp.qrValue) {
         try {
           qrDataUrl = await QRCode.toDataURL(emp.qrValue, { width: 140, margin: 1 });
-        } catch (e) {}
+        } catch (e) { }
       }
 
       return {
@@ -339,17 +376,18 @@ export async function getEmployees(filters?: { search?: string; departmentId?: n
         departmentId: emp.departmentId,
         departmentName: emp.departmentName || 'Unassigned',
         position: emp.position,
+        photoUrl: emp.photoUrl || (emp.employeeCode ? `/uploads/employees/${emp.employeeCode}.jpg` : null),
         basicSalary: emp.basicSalary,
         status: emp.status as 'active' | 'inactive',
         createdAt: emp.createdAt.toISOString(),
         qrCode: emp.qrId
           ? {
-              id: emp.qrId,
-              qrValue: emp.qrValue!,
-              status: emp.qrStatus!,
-              generatedAt: emp.qrGeneratedAt!.toISOString(),
-              dataUrl: qrDataUrl || undefined,
-            }
+            id: emp.qrId,
+            qrValue: emp.qrValue!,
+            status: emp.qrStatus!,
+            generatedAt: emp.qrGeneratedAt!.toISOString(),
+            dataUrl: qrDataUrl || undefined,
+          }
           : null,
       };
     })
@@ -368,6 +406,7 @@ export async function getEmployeeById(id: number) {
       departmentId: employees.departmentId,
       departmentName: departments.departmentName,
       position: employees.position,
+      photoUrl: employees.photoUrl,
       basicSalary: employees.basicSalary,
       status: employees.status,
       createdAt: employees.createdAt,
@@ -413,18 +452,19 @@ export async function getEmployeeById(id: number) {
     departmentId: emp.departmentId,
     departmentName: emp.departmentName || 'Unassigned',
     position: emp.position,
+    photoUrl: emp.photoUrl || (emp.employeeCode ? `/uploads/employees/${emp.employeeCode}.jpg` : null),
     basicSalary: emp.basicSalary,
     status: emp.status as 'active' | 'inactive',
     createdAt: emp.createdAt.toISOString(),
     userAccount: userAcc || null,
     qrCode: emp.qrId
       ? {
-          id: emp.qrId,
-          qrValue: emp.qrValue!,
-          status: emp.qrStatus!,
-          generatedAt: emp.qrGeneratedAt!.toISOString(),
-          dataUrl: qrDataUrl,
-        }
+        id: emp.qrId,
+        qrValue: emp.qrValue!,
+        status: emp.qrStatus!,
+        generatedAt: emp.qrGeneratedAt!.toISOString(),
+        dataUrl: qrDataUrl,
+      }
       : null,
   };
 }
@@ -438,11 +478,17 @@ export async function createEmployee(data: {
   departmentId: number;
   position: string;
   basicSalary: string | number;
+  photoUrl?: string;
   createAccount?: boolean;
   username?: string;
   password?: string;
   roleId?: number;
 }) {
+  const val = validateEmployeeInput(data);
+  if (!val.isValid) {
+    throw new Error(val.errors.join(' '));
+  }
+
   const code = data.employeeCode.trim().toUpperCase();
   const emailTrimmed = data.email.trim().toLowerCase();
 
@@ -495,6 +541,7 @@ export async function createEmployee(data: {
       phone: data.phone.trim(),
       departmentId: data.departmentId,
       position: data.position.trim(),
+      photoUrl: data.photoUrl ? data.photoUrl.trim() : null,
       basicSalary: salaryNum.toFixed(2),
       status: 'active',
     })
@@ -539,13 +586,19 @@ export async function updateEmployee(
     departmentId?: number;
     position?: string;
     basicSalary?: string | number;
+    photoUrl?: string | null;
     status?: 'active' | 'inactive';
   }
 ) {
+  const val = validateEmployeeInput(data);
+  if (!val.isValid) {
+    throw new Error(val.errors.join(' '));
+  }
+
   const updateData: any = {};
   if (data.firstName !== undefined) updateData.firstName = data.firstName.trim();
   if (data.lastName !== undefined) updateData.lastName = data.lastName.trim();
-  
+
   if (data.email !== undefined) {
     const emailTrimmed = data.email.trim().toLowerCase();
     const [existingEmail] = await db
@@ -559,7 +612,7 @@ export async function updateEmployee(
   }
 
   if (data.phone !== undefined) updateData.phone = data.phone.trim();
-  
+
   if (data.departmentId !== undefined) {
     const [dept] = await db.select({ id: departments.id }).from(departments).where(eq(departments.id, data.departmentId));
     if (!dept) {
@@ -569,7 +622,8 @@ export async function updateEmployee(
   }
 
   if (data.position !== undefined) updateData.position = data.position.trim();
-  
+  if (data.photoUrl !== undefined) updateData.photoUrl = data.photoUrl ? data.photoUrl.trim() : null;
+
   if (data.basicSalary !== undefined) {
     const salaryNum = parseFloat(data.basicSalary.toString());
     if (isNaN(salaryNum) || salaryNum < 0) {
@@ -670,6 +724,7 @@ export async function getAllQRCodes() {
       lastName: employees.lastName,
       email: employees.email,
       position: employees.position,
+      photoUrl: employees.photoUrl,
       departmentName: departments.departmentName,
     })
     .from(qrCodes)
@@ -682,7 +737,7 @@ export async function getAllQRCodes() {
       let dataUrl = '';
       try {
         dataUrl = await QRCode.toDataURL(item.qrValue, { width: 250, margin: 2 });
-      } catch (e) {}
+      } catch (e) { }
       return {
         id: item.id,
         employeeId: item.employeeId,
@@ -690,6 +745,7 @@ export async function getAllQRCodes() {
         employeeCode: item.employeeCode,
         departmentName: item.departmentName || 'Unassigned',
         position: item.position,
+        photoUrl: item.photoUrl || (item.employeeCode ? `/uploads/employees/${item.employeeCode}.jpg` : null),
         qrValue: item.qrValue,
         generatedAt: item.generatedAt.toISOString(),
         status: item.status as 'active' | 'revoked',
@@ -701,6 +757,7 @@ export async function getAllQRCodes() {
           lastName: item.lastName,
           email: item.email,
           position: item.position,
+          photoUrl: item.photoUrl || (item.employeeCode ? `/uploads/employees/${item.employeeCode}.jpg` : null),
           departmentName: item.departmentName || 'Unassigned',
         },
       };
@@ -713,9 +770,30 @@ export async function getAllQRCodes() {
 // ----------------------------------------------------
 // QR Scanning & Attendance Core Engine
 // ----------------------------------------------------
+interface CooldownEntry {
+  timestamp: number;
+  actionType: string;
+}
+const scanCooldownStore = new Map<number, CooldownEntry>();
+export const SCAN_COOLDOWN_SECONDS = 30;
+
+export interface QRScanOptions {
+  skipCooldown?: boolean;
+  timestampOverride?: Date;
+  isOfflineSync?: boolean;
+}
+
+export interface OfflinePunchItem {
+  id: string;
+  qrValue: string;
+  mode?: 'auto' | 'check_in' | 'check_out';
+  timestamp: string;
+}
+
 export async function processQRScan(
   identifier: string,
-  actionType: 'auto' | 'check_in' | 'check_out' = 'auto'
+  actionType: 'auto' | 'check_in' | 'check_out' = 'auto',
+  options?: QRScanOptions
 ): Promise<ScanResult> {
   const trimmed = identifier?.trim();
   if (!trimmed) {
@@ -789,13 +867,41 @@ export async function processQRScan(
           name: `${empDetails.firstName} ${empDetails.lastName}`,
           department: empDetails.departmentName,
           position: empDetails.position,
+          photoUrl: empDetails.photoUrl || null,
         },
       };
     }
 
+    const now = options?.timestampOverride instanceof Date ? options.timestampOverride : new Date();
+
+    // 2b. Debounce / Duplicate Scan Guard (Backend Cooldown Threshold)
+    if (!options?.skipCooldown) {
+      const lastScan = scanCooldownStore.get(empDetails.id);
+      if (lastScan && (lastScan.actionType === actionType || actionType === 'auto')) {
+        const elapsedMs = Date.now() - lastScan.timestamp;
+        if (elapsedMs < SCAN_COOLDOWN_SECONDS * 1000) {
+          const cooldownRemaining = Math.ceil((SCAN_COOLDOWN_SECONDS * 1000 - elapsedMs) / 1000);
+          return {
+            success: false,
+            type: 'info',
+            message: `Attendance already recorded. Duplicate scan prevented (Cooldown active: ${cooldownRemaining}s remaining).`,
+            timestamp: now.toISOString(),
+            cooldownSecondsRemaining: cooldownRemaining,
+            employee: {
+              id: empDetails.id,
+              code: empDetails.employeeCode,
+              name: `${empDetails.firstName} ${empDetails.lastName}`,
+              department: empDetails.departmentName,
+              position: empDetails.position,
+              photoUrl: empDetails.photoUrl || null,
+            },
+          };
+        }
+      }
+    }
+
     // 3. Settings & Time calculation (Fetched dynamically, never hard-coded)
     const settings = await getSettingsMap();
-    const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
     const currentTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
 
@@ -825,6 +931,7 @@ export async function processQRScan(
           name: `${empDetails.firstName} ${empDetails.lastName}`,
           department: empDetails.departmentName,
           position: empDetails.position,
+          photoUrl: empDetails.photoUrl || null,
         },
         attendance: {
           id: existingRecord.id,
@@ -851,6 +958,7 @@ export async function processQRScan(
           name: `${empDetails.firstName} ${empDetails.lastName}`,
           department: empDetails.departmentName,
           position: empDetails.position,
+          photoUrl: empDetails.photoUrl || null,
         },
         attendance: {
           id: existingRecord.id,
@@ -900,26 +1008,50 @@ export async function processQRScan(
         })
         .returning();
 
+      // Record successful cooldown
+      scanCooldownStore.set(empDetails.id, { timestamp: Date.now(), actionType: 'check_in' });
+
       await recordAudit(
         null,
-        'QR_SCANNER',
+        options?.isOfflineSync ? 'OFFLINE_SYNC' : 'QR_SCANNER',
         'CHECK_IN',
         'attendance',
         newAtt.id.toString(),
-        `${empDetails.employeeCode} (${empDetails.firstName} ${empDetails.lastName}) checked in at ${currentTimeStr} [${calculation.status}]`
+        `${empDetails.employeeCode} (${empDetails.firstName} ${empDetails.lastName}) checked in at ${currentTimeStr} [${calculation.status}]${options?.isOfflineSync ? ' (Synced from offline cache)' : ''}`
       );
+
+      // Non-blocking Attendance Check-In / Late Notification Dispatch
+      try {
+        const isLate = calculation.status === 'Late';
+        NotificationService.dispatch({
+          employeeId: empDetails.id,
+          title: isLate ? 'Late Attendance Notice' : 'Check-In Recorded',
+          message: isLate
+            ? `Your attendance was recorded after the configured start time at ${currentTimeStr}.`
+            : `Your attendance has been successfully recorded at ${currentTimeStr}.`,
+          category: 'Attendance',
+          type: 'ATTENDANCE',
+          priority: isLate ? 'normal' : 'low',
+          actionUrl: '/attendance',
+          idempotencyKey: `att-in-${empDetails.id}-${todayStr}`,
+        }).catch((e) => console.warn('[Notification] Check-in alert dispatch error:', e));
+      } catch (notifErr) {
+        console.warn('[Notification] Check-in notification error ignored to preserve attendance transaction:', notifErr);
+      }
 
       return {
         success: true,
         type: 'check_in',
         message: 'Attendance recorded successfully.',
         timestamp: now.toISOString(),
+        isOfflineSync: options?.isOfflineSync || false,
         employee: {
           id: empDetails.id,
           code: empDetails.employeeCode,
           name: `${empDetails.firstName} ${empDetails.lastName}`,
           department: empDetails.departmentName,
           position: empDetails.position,
+          photoUrl: empDetails.photoUrl || null,
         },
         attendance: {
           id: newAtt.id,
@@ -956,26 +1088,60 @@ export async function processQRScan(
       .where(eq(attendance.id, existingRecord.id))
       .returning();
 
+    // Record successful cooldown
+    scanCooldownStore.set(empDetails.id, { timestamp: Date.now(), actionType: 'check_out' });
+
     await recordAudit(
       null,
-      'QR_SCANNER',
+      options?.isOfflineSync ? 'OFFLINE_SYNC' : 'QR_SCANNER',
       'CHECK_OUT',
       'attendance',
       updatedAtt.id.toString(),
-      `${empDetails.employeeCode} (${empDetails.firstName} ${empDetails.lastName}) checked out at ${currentTimeStr}. Hours: ${calculation.workingHours}, Overtime: ${calculation.overtimeHours}, Status: ${calculation.status}`
+      `${empDetails.employeeCode} (${empDetails.firstName} ${empDetails.lastName}) checked out at ${currentTimeStr}. Hours: ${calculation.workingHours}, Overtime: ${calculation.overtimeHours}, Status: ${calculation.status}${options?.isOfflineSync ? ' (Synced from offline cache)' : ''}`
     );
+
+    // Non-blocking Attendance Check-Out & Overtime Notification Dispatch
+    try {
+      NotificationService.dispatch({
+        employeeId: empDetails.id,
+        title: 'Check-Out Recorded',
+        message: `Your attendance has been recorded successfully. Check-out time: ${currentTimeStr}. Working hours: ${calculation.workingHours}h.`,
+        category: 'Attendance',
+        type: 'ATTENDANCE',
+        priority: 'low',
+        actionUrl: '/attendance',
+        idempotencyKey: `att-out-${empDetails.id}-${todayStr}`,
+      }).catch((e) => console.warn('[Notification] Checkout alert dispatch error:', e));
+
+      if (calculation.overtimeHours > 0) {
+        NotificationService.dispatch({
+          employeeId: empDetails.id,
+          title: 'Overtime Detected',
+          message: `Your attendance record indicates ${calculation.overtimeHours} hours of overtime today.`,
+          category: 'Overtime',
+          type: 'OVERTIME',
+          priority: 'normal',
+          actionUrl: '/attendance',
+          idempotencyKey: `att-ot-${empDetails.id}-${todayStr}`,
+        }).catch((e) => console.warn('[Notification] Overtime alert dispatch error:', e));
+      }
+    } catch (notifErr) {
+      console.warn('[Notification] Checkout notification error ignored to preserve attendance transaction:', notifErr);
+    }
 
     return {
       success: true,
       type: 'check_out',
       message: 'Attendance recorded successfully.',
       timestamp: now.toISOString(),
+      isOfflineSync: options?.isOfflineSync || false,
       employee: {
         id: empDetails.id,
         code: empDetails.employeeCode,
         name: `${empDetails.firstName} ${empDetails.lastName}`,
         department: empDetails.departmentName,
         position: empDetails.position,
+        photoUrl: empDetails.photoUrl || null,
       },
       attendance: {
         id: updatedAtt.id,
@@ -996,6 +1162,67 @@ export async function processQRScan(
       timestamp: new Date().toISOString(),
     };
   }
+}
+
+// ----------------------------------------------------
+// Offline Batch Synchronization Service
+// ----------------------------------------------------
+export async function processOfflineBatchSync(punches: OfflinePunchItem[]) {
+  const sorted = [...punches].sort(
+    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+  );
+
+  const results = [];
+  let synced = 0;
+  let failed = 0;
+
+  for (const punch of sorted) {
+    try {
+      const scanDate = new Date(punch.timestamp);
+      const res = await processQRScan(punch.qrValue, punch.mode || 'auto', {
+        skipCooldown: true, // Batch sync processes historically recorded punches
+        timestampOverride: isNaN(scanDate.getTime()) ? new Date() : scanDate,
+        isOfflineSync: true,
+      });
+
+      if (res.success || res.type === 'info') {
+        synced++;
+        results.push({
+          id: punch.id,
+          success: true,
+          message: res.message,
+          type: res.type,
+          employee: res.employee,
+          attendance: res.attendance,
+        });
+      } else {
+        failed++;
+        results.push({
+          id: punch.id,
+          success: false,
+          message: res.message,
+          type: res.type,
+          employee: res.employee,
+        });
+      }
+    } catch (err: any) {
+      failed++;
+      results.push({
+        id: punch.id,
+        success: false,
+        message: err.message || 'Error processing offline punch',
+        type: 'error',
+      });
+    }
+  }
+
+  return {
+    success: true,
+    total: punches.length,
+    synced,
+    failed,
+    results,
+  };
 }
 
 // ----------------------------------------------------
@@ -1085,6 +1312,11 @@ export async function createManualAttendance(data: {
   notes?: string;
   adminUsername?: string;
 }) {
+  const val = validateAttendanceInput(data);
+  if (!val.isValid) {
+    throw new Error(val.errors.join(' '));
+  }
+
   if (!isValidDateFormat(data.attendanceDate)) {
     throw new Error(`Invalid attendance date format: ${data.attendanceDate}. Expected YYYY-MM-DD.`);
   }
@@ -1174,6 +1406,10 @@ export async function updateAttendanceRecord(
   },
   adminUsername?: string
 ) {
+  const val = validateAttendanceInput(data);
+  if (!val.isValid) {
+    throw new Error(val.errors.join(' '));
+  }
   const updateData: any = {};
   if (data.checkIn !== undefined) {
     if (!isValidTimeFormat(data.checkIn)) throw new Error('Invalid check-in time');
@@ -1295,6 +1531,11 @@ export async function createOvertimeRecord(data: {
   approvedBy?: number;
   username?: string;
 }) {
+  const val = validateOvertimeInput(data);
+  if (!val.isValid) {
+    throw new Error(val.errors.join(' '));
+  }
+
   const [emp] = await db.select().from(employees).where(eq(employees.id, data.employeeId));
   if (!emp) throw new Error('Employee not found');
 
@@ -1343,6 +1584,11 @@ export async function updateOvertimeRecord(
   },
   username = 'ADMIN'
 ) {
+  const val = validateOvertimeInput(data);
+  if (!val.isValid) {
+    throw new Error(val.errors.join(' '));
+  }
+
   const [existing] = await db.select().from(overtime).where(eq(overtime.id, id));
   if (!existing) throw new Error('Overtime record not found');
 
@@ -1400,6 +1646,22 @@ export async function approveOvertimeRecord(id: number, approverUserId: number, 
     id.toString(),
     `Approved overtime record ID ${id} (${existing.hours} hrs for employee ID ${existing.employeeId})`
   );
+
+  // Non-blocking Overtime Approval Notification
+  try {
+    NotificationService.dispatch({
+      employeeId: existing.employeeId,
+      title: 'Overtime Approved',
+      message: `Your overtime record of ${existing.hours} hours for ${existing.overtimeDate} has been approved.`,
+      category: 'Overtime',
+      type: 'OVERTIME',
+      priority: 'normal',
+      actionUrl: '/attendance',
+      idempotencyKey: `ot-appr-${existing.id}`,
+    }).catch((e) => console.warn('[Notification] Overtime approval alert error:', e));
+  } catch (notifErr) {
+    console.warn('[Notification] Overtime approval notification non-fatal error:', notifErr);
+  }
 
   return updated;
 }
@@ -1781,6 +2043,16 @@ export async function updatePayrollRecord(
   },
   adminUsername = 'ADMIN'
 ) {
+  const val = validatePayrollInput({
+    basicSalary: data.basicSalary,
+    allowances: data.allowances,
+    deductions: data.deductions,
+    status: data.status,
+  });
+  if (!val.isValid) {
+    throw new Error(val.errors.join(' '));
+  }
+
   const [existing] = await db.select().from(payroll).where(eq(payroll.id, id));
   if (!existing) throw new Error('Payroll record not found');
 
@@ -1859,6 +2131,22 @@ export async function approvePayrollRecord(id: number, adminUsername = 'ADMIN') 
     `Approved payroll record ID ${id} for employee ID ${existing.employeeId} (${existing.payrollPeriod})`
   );
 
+  // Non-blocking Employee Payslip Availability Notification
+  try {
+    NotificationService.dispatch({
+      employeeId: existing.employeeId,
+      title: 'Payroll Available',
+      message: `Your payroll for ${existing.payrollPeriod} is now available. Click below to view your payslip securely.`,
+      category: 'Payroll',
+      type: 'PAYROLL',
+      priority: 'normal',
+      actionUrl: '/payroll',
+      idempotencyKey: `pay-avail-${existing.employeeId}-${existing.payrollPeriod}`,
+    }).catch((e) => console.warn('[Notification] Payroll available notification dispatch error:', e));
+  } catch (notifErr) {
+    console.warn('[Notification] Payroll notification non-fatal error:', notifErr);
+  }
+
   return updated;
 }
 
@@ -1906,6 +2194,38 @@ export async function processAllPayrollForPeriod(
     period,
     `Batch updated ${result.length} payroll records for ${period} to status ${targetStatus}`
   );
+
+  // Non-blocking batch notification dispatch
+  try {
+    if (targetStatus === 'Approved') {
+      // Notify each employee their payslip is available
+      for (const rec of result) {
+        NotificationService.dispatch({
+          employeeId: rec.employeeId,
+          title: 'Payroll Available',
+          message: `Your payroll for ${period} is now available. Click below to view your payslip securely.`,
+          category: 'Payroll',
+          type: 'PAYROLL',
+          priority: 'normal',
+          actionUrl: '/payroll',
+          idempotencyKey: `pay-avail-${rec.employeeId}-${period}`,
+        }).catch(() => {});
+      }
+    } else {
+      // Notify Approvers that payroll review is needed
+      NotificationService.dispatch({
+        title: 'Payroll Approval Required',
+        message: `${period} payroll is ready for review and approval.`,
+        category: 'Payroll',
+        type: 'APPROVAL',
+        priority: 'high',
+        actionUrl: '/payroll',
+        idempotencyKey: `pay-req-${period}`,
+      }).catch(() => {});
+    }
+  } catch (notifErr) {
+    console.warn('[Notification] Batch payroll notification non-fatal error:', notifErr);
+  }
 
   return result;
 }
@@ -2036,5 +2356,469 @@ export async function getDashboardStats() {
       count: d.employeeCount,
     })),
     weeklyTrend,
+  };
+}
+
+// ----------------------------------------------------
+// Database Live Status & Diagnostics Service
+// ----------------------------------------------------
+export async function getDatabaseStatus() {
+  const start = Date.now();
+  // 1. Basic query and engine version
+  const versionRes = await db.execute(sql`SELECT version();`);
+  const latencyMs = Date.now() - start;
+  const versionStr = (versionRes.rows[0] as any)?.version || 'PostgreSQL (unknown version)';
+
+  // 2. Database & User metadata
+  const metaRes = await db.execute(
+    sql`SELECT current_database() as db_name, current_user as user_name, inet_server_port() as port, NOW() as server_time;`
+  );
+  const meta = metaRes.rows[0] as any;
+
+  // 3. Table counts
+  const [empCount] = await db.select({ count: sql<number>`count(*)::int` }).from(employees);
+  const [attCount] = await db.select({ count: sql<number>`count(*)::int` }).from(attendance);
+  const [payCount] = await db.select({ count: sql<number>`count(*)::int` }).from(payroll);
+  const [usrCount] = await db.select({ count: sql<number>`count(*)::int` }).from(users);
+  const [depCount] = await db.select({ count: sql<number>`count(*)::int` }).from(departments);
+  const [qrCount] = await db.select({ count: sql<number>`count(*)::int` }).from(qrCodes);
+  const [auditCount] = await db.select({ count: sql<number>`count(*)::int` }).from(auditLogs);
+  const [otCount] = await db.select({ count: sql<number>`count(*)::int` }).from(overtime);
+
+  return {
+    status: 'connected',
+    engine: 'PostgreSQL 18',
+    version: versionStr,
+    database: meta?.db_name || 'apex_hrms_db',
+    user: meta?.user_name || 'postgres',
+    port: meta?.port || 5432,
+    serverTime: meta?.server_time || new Date().toISOString(),
+    latencyMs,
+    tableCounts: {
+      employees: empCount?.count || 0,
+      attendance: attCount?.count || 0,
+      payroll: payCount?.count || 0,
+      users: usrCount?.count || 0,
+      departments: depCount?.count || 0,
+      qrCodes: qrCount?.count || 0,
+      auditLogs: auditCount?.count || 0,
+      overtime: otCount?.count || 0,
+    },
+  };
+}
+
+// ----------------------------------------------------
+// Bulk Import Employees (Auto-Insert & Update)
+// ----------------------------------------------------
+export interface BulkEmployeeItem {
+  employeeCode?: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string;
+  department?: string | number;
+  departmentId?: number;
+  position?: string;
+  basicSalary?: string | number;
+  photoUrl?: string;
+  status?: 'active' | 'inactive';
+}
+
+export async function bulkImportEmployees(
+  items: BulkEmployeeItem[],
+  adminUsername?: string
+) {
+  let inserted = 0;
+  let updated = 0;
+  const errors: Array<{ row: number; identifier: string; error: string }> = [];
+  const details: Array<{ employeeCode: string; name: string; action: 'inserted' | 'updated' }> = [];
+
+  const allDepts = await db.select().from(departments);
+  const deptMapByName = new Map<string, number>();
+  const deptMapById = new Map<number, number>();
+  for (const d of allDepts) {
+    deptMapByName.set(d.departmentName.toLowerCase().trim(), d.id);
+    deptMapById.set(d.id, d.id);
+  }
+
+  let maxCodeNum = 1000;
+  const existingCodes = await db.select({ employeeCode: employees.employeeCode }).from(employees);
+  for (const row of existingCodes) {
+    const match = row.employeeCode.match(/\d+/);
+    if (match) {
+      const val = parseInt(match[0], 10);
+      if (val > maxCodeNum) maxCodeNum = val;
+    }
+  }
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    const rowNum = i + 1;
+    const identifier = item.employeeCode || item.email || `Row ${rowNum}`;
+
+    try {
+      const firstName = (item.firstName || '').trim();
+      const lastName = (item.lastName || '').trim();
+      const email = (item.email || '').trim().toLowerCase();
+      let code = (item.employeeCode || '').trim().toUpperCase();
+
+      if (!firstName || !lastName) {
+        errors.push({ row: rowNum, identifier, error: 'First name and last name are required.' });
+        continue;
+      }
+
+      if (!email || !EMAIL_REGEX.test(email)) {
+        errors.push({ row: rowNum, identifier, error: `Valid email address is required (got: "${email}").` });
+        continue;
+      }
+
+      if (item.basicSalary !== undefined && item.basicSalary !== null && item.basicSalary !== '') {
+        const sNum = parseFloat(item.basicSalary.toString());
+        if (isNaN(sNum) || sNum < 0) {
+          errors.push({ row: rowNum, identifier, error: `Basic salary must be a valid positive number (got: "${item.basicSalary}").` });
+          continue;
+        }
+      }
+
+      // Department resolution
+      let resolvedDeptId: number | null = null;
+      if (item.departmentId && deptMapById.has(Number(item.departmentId))) {
+        resolvedDeptId = Number(item.departmentId);
+      } else if (item.department) {
+        const deptStr = item.department.toString().trim();
+        const asNum = parseInt(deptStr, 10);
+        if (!isNaN(asNum) && deptMapById.has(asNum)) {
+          resolvedDeptId = asNum;
+        } else {
+          const lowerName = deptStr.toLowerCase();
+          if (deptMapByName.has(lowerName)) {
+            resolvedDeptId = deptMapByName.get(lowerName)!;
+          } else {
+            const [newDept] = await db
+              .insert(departments)
+              .values({ departmentName: deptStr, description: 'Auto-created via data upload' })
+              .returning();
+            resolvedDeptId = newDept.id;
+            deptMapByName.set(lowerName, newDept.id);
+            deptMapById.set(newDept.id, newDept.id);
+          }
+        }
+      }
+
+      if (!resolvedDeptId) {
+        if (allDepts.length > 0) {
+          resolvedDeptId = allDepts[0].id;
+        } else {
+          const [firstDept] = await db
+            .insert(departments)
+            .values({ departmentName: 'General', description: 'Default department' })
+            .returning();
+          resolvedDeptId = firstDept.id;
+          deptMapByName.set('general', firstDept.id);
+          deptMapById.set(firstDept.id, firstDept.id);
+        }
+      }
+
+      const position = (item.position || 'Staff Member').trim();
+      const phone = (item.phone || '').trim();
+      const salaryNum = item.basicSalary ? parseFloat(item.basicSalary.toString()) : 5000;
+      const validSalary = (!isNaN(salaryNum) && salaryNum >= 0 ? salaryNum : 5000).toFixed(2);
+      const photoUrl = item.photoUrl ? item.photoUrl.trim() : null;
+      const status = item.status === 'inactive' ? 'inactive' : 'active';
+
+      // Check if employee exists by code or email
+      let existingEmp = null;
+      if (code) {
+        const [byCode] = await db.select().from(employees).where(eq(employees.employeeCode, code));
+        if (byCode) existingEmp = byCode;
+      }
+      if (!existingEmp && email) {
+        const [byEmail] = await db.select().from(employees).where(eq(employees.email, email));
+        if (byEmail) existingEmp = byEmail;
+      }
+
+      if (existingEmp) {
+        // UPDATE existing record
+        const updatePayload: any = {
+          firstName,
+          lastName,
+          departmentId: resolvedDeptId,
+          position,
+          basicSalary: validSalary,
+          status,
+        };
+        if (phone) updatePayload.phone = phone;
+        if (email) updatePayload.email = email;
+        if (photoUrl) updatePayload.photoUrl = photoUrl;
+
+        await db.update(employees).set(updatePayload).where(eq(employees.id, existingEmp.id));
+
+        // Ensure active QR Code
+        const [qr] = await db.select().from(qrCodes).where(eq(qrCodes.employeeId, existingEmp.id));
+        if (!qr) {
+          const randomSuffix = Math.random().toString(36).substring(2, 8).toUpperCase() + Date.now().toString(36).toUpperCase();
+          const qrVal = `APEX-QR-${existingEmp.employeeCode}-${randomSuffix}`;
+          await db.insert(qrCodes).values({
+            employeeId: existingEmp.id,
+            qrValue: qrVal,
+            status: 'active',
+          });
+        }
+
+        updated++;
+        details.push({
+          employeeCode: existingEmp.employeeCode,
+          name: `${firstName} ${lastName}`,
+          action: 'updated',
+        });
+      } else {
+        // INSERT new employee
+        if (!code) {
+          maxCodeNum++;
+          code = `EMP-${maxCodeNum}`;
+        }
+
+        const [createdEmp] = await db
+          .insert(employees)
+          .values({
+            employeeCode: code,
+            firstName,
+            lastName,
+            email,
+            phone,
+            departmentId: resolvedDeptId,
+            position,
+            basicSalary: validSalary,
+            photoUrl,
+            status,
+          })
+          .returning();
+
+        // Create QR code
+        const randomSuffix = Math.random().toString(36).substring(2, 8).toUpperCase() + Date.now().toString(36).toUpperCase();
+        const qrVal = `APEX-QR-${createdEmp.employeeCode}-${randomSuffix}`;
+        await db.insert(qrCodes).values({
+          employeeId: createdEmp.id,
+          qrValue: qrVal,
+          status: 'active',
+        });
+
+        inserted++;
+        details.push({
+          employeeCode: code,
+          name: `${firstName} ${lastName}`,
+          action: 'inserted',
+        });
+      }
+    } catch (err: any) {
+      errors.push({ row: rowNum, identifier, error: err.message || 'Processing error' });
+    }
+  }
+
+  await recordAudit(
+    null,
+    adminUsername || 'SYSTEM',
+    'EMPLOYEES_BULK_IMPORT',
+    'employees',
+    null,
+    `Bulk import processed ${items.length} records: ${inserted} inserted, ${updated} updated, ${errors.length} errors.`
+  );
+
+  return {
+    success: errors.length === 0,
+    total: items.length,
+    inserted,
+    updated,
+    errors,
+    details,
+  };
+}
+
+// ----------------------------------------------------
+// Bulk Import Attendance (Auto-Insert & Update)
+// ----------------------------------------------------
+export interface BulkAttendanceItem {
+  employeeCode?: string;
+  employeeId?: number;
+  email?: string;
+  attendanceDate: string;
+  checkIn?: string;
+  checkOut?: string;
+  workingHours?: string | number;
+  overtimeHours?: string | number;
+  status?: AttendanceStatus;
+  notes?: string;
+}
+
+export async function bulkImportAttendance(
+  items: BulkAttendanceItem[],
+  adminUsername?: string
+) {
+  let inserted = 0;
+  let updated = 0;
+  const errors: Array<{ row: number; identifier: string; error: string }> = [];
+  const details: Array<{ employeeCode: string; date: string; action: 'inserted' | 'updated'; status: string }> = [];
+
+  const settings = await getSettingsMap();
+
+  const allEmployees = await db.select().from(employees);
+  const empById = new Map<number, typeof allEmployees[0]>();
+  const empByCode = new Map<string, typeof allEmployees[0]>();
+  const empByEmail = new Map<string, typeof allEmployees[0]>();
+
+  for (const emp of allEmployees) {
+    empById.set(emp.id, emp);
+    empByCode.set(emp.employeeCode.toUpperCase().trim(), emp);
+    empByEmail.set(emp.email.toLowerCase().trim(), emp);
+  }
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    const rowNum = i + 1;
+    const identifier = item.employeeCode || (item.employeeId ? `ID ${item.employeeId}` : (item.email || `Row ${rowNum}`));
+
+    try {
+      // 1. Resolve employee
+      let targetEmp = null;
+      if (item.employeeId && empById.has(Number(item.employeeId))) {
+        targetEmp = empById.get(Number(item.employeeId))!;
+      } else if (item.employeeCode && empByCode.has(item.employeeCode.toUpperCase().trim())) {
+        targetEmp = empByCode.get(item.employeeCode.toUpperCase().trim())!;
+      } else if (item.email && empByEmail.has(item.email.toLowerCase().trim())) {
+        targetEmp = empByEmail.get(item.email.toLowerCase().trim())!;
+      }
+
+      if (!targetEmp) {
+        errors.push({ row: rowNum, identifier, error: `Employee not found for "${identifier}".` });
+        continue;
+      }
+
+      // 2. Validate date
+      const dateStr = (item.attendanceDate || '').trim();
+      if (!isValidDateFormat(dateStr)) {
+        errors.push({ row: rowNum, identifier, error: `Invalid date format "${dateStr}". Expected YYYY-MM-DD.` });
+        continue;
+      }
+
+      // 3. Compute timings
+      let checkIn = item.checkIn ? item.checkIn.trim() : null;
+      let checkOut = item.checkOut ? item.checkOut.trim() : null;
+
+      if (checkIn && /^\d{1,2}:\d{2}$/.test(checkIn)) {
+        const parts = checkIn.split(':');
+        checkIn = `${parts[0].padStart(2, '0')}:${parts[1]}:00`;
+      }
+      if (checkOut && /^\d{1,2}:\d{2}$/.test(checkOut)) {
+        const parts = checkOut.split(':');
+        checkOut = `${parts[0].padStart(2, '0')}:${parts[1]}:00`;
+      }
+
+      let computedWorkingHours = 0;
+      let computedOvertimeHours = 0;
+      let finalStatus: AttendanceStatus = item.status || 'Present';
+
+      if (checkIn && isValidTimeFormat(checkIn)) {
+        const metrics = calculateAttendanceMetrics({
+          checkIn,
+          checkOut: checkOut && isValidTimeFormat(checkOut) ? checkOut : null,
+          standardCheckIn: settings.standard_check_in,
+          standardCheckOut: settings.standard_check_out,
+          standardWorkingHours: parseFloat(settings.standard_working_hours) || 8.0,
+          unpaidBreakHours: parseFloat(settings.unpaid_break_hours) || 1.0,
+          lateThresholdMinutes: parseInt(settings.late_grace_minutes, 10) || 15,
+          earlyDepartureThresholdMinutes: parseInt(settings.early_departure_threshold_minutes, 10) || 30,
+        });
+        computedWorkingHours = metrics.workingHours;
+        computedOvertimeHours = metrics.overtimeHours;
+        if (!item.status) {
+          finalStatus = metrics.status;
+        }
+      }
+
+      const finalWorkingHours = item.workingHours !== undefined && item.workingHours !== ''
+        ? parseFloat(item.workingHours.toString()).toFixed(2)
+        : computedWorkingHours.toFixed(2);
+
+      const finalOvertimeHours = item.overtimeHours !== undefined && item.overtimeHours !== ''
+        ? parseFloat(item.overtimeHours.toString()).toFixed(2)
+        : computedOvertimeHours.toFixed(2);
+
+      const whNum = parseFloat(finalWorkingHours);
+      if (isNaN(whNum) || whNum < 0 || whNum > 24) {
+        errors.push({ row: rowNum, identifier, error: `Working hours must be between 0 and 24 (got: "${finalWorkingHours}").` });
+        continue;
+      }
+
+      const otNum = parseFloat(finalOvertimeHours);
+      if (isNaN(otNum) || otNum < 0 || otNum > 24) {
+        errors.push({ row: rowNum, identifier, error: `Overtime hours must be between 0 and 24 (got: "${finalOvertimeHours}").` });
+        continue;
+      }
+
+      // 4. Check if record exists for this employee on this date
+      const [existingRecord] = await db
+        .select()
+        .from(attendance)
+        .where(and(eq(attendance.employeeId, targetEmp.id), eq(attendance.attendanceDate, dateStr)));
+
+      if (existingRecord) {
+        await db
+          .update(attendance)
+          .set({
+            checkIn: checkIn || existingRecord.checkIn,
+            checkOut: checkOut !== undefined ? checkOut : existingRecord.checkOut,
+            workingHours: finalWorkingHours,
+            overtimeHours: finalOvertimeHours,
+            status: finalStatus,
+          })
+          .where(eq(attendance.id, existingRecord.id));
+
+        updated++;
+        details.push({
+          employeeCode: targetEmp.employeeCode,
+          date: dateStr,
+          action: 'updated',
+          status: finalStatus,
+        });
+      } else {
+        await db.insert(attendance).values({
+          employeeId: targetEmp.id,
+          attendanceDate: dateStr,
+          checkIn: checkIn || '08:00:00',
+          checkOut,
+          workingHours: finalWorkingHours,
+          overtimeHours: finalOvertimeHours,
+          status: finalStatus,
+        });
+
+        inserted++;
+        details.push({
+          employeeCode: targetEmp.employeeCode,
+          date: dateStr,
+          action: 'inserted',
+          status: finalStatus,
+        });
+      }
+    } catch (err: any) {
+      errors.push({ row: rowNum, identifier, error: err.message || 'Processing error' });
+    }
+  }
+
+  await recordAudit(
+    null,
+    adminUsername || 'SYSTEM',
+    'ATTENDANCE_BULK_IMPORT',
+    'attendance',
+    null,
+    `Bulk attendance import processed ${items.length} records: ${inserted} inserted, ${updated} updated, ${errors.length} errors.`
+  );
+
+  return {
+    success: errors.length === 0,
+    total: items.length,
+    inserted,
+    updated,
+    errors,
+    details,
   };
 }

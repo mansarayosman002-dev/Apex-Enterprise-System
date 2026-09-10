@@ -7,6 +7,9 @@ import { runPayrollTests } from './payroll.test.ts';
 import { runRBACTests } from './rbac.test.ts';
 import { runSecurityTests } from './security.test.ts';
 import { runUITests } from './ui.test.ts';
+import { runAITests } from './ai.test.ts';
+import { runNotificationTests } from './notification.test.ts';
+import { runDataValidationTests } from './dataValidationConstraints.test.ts';
 
 async function main() {
   console.log('╔══════════════════════════════════════════════════════════════════╗');
@@ -43,6 +46,15 @@ async function main() {
     const uiRes = await runUITests();
     suiteResults.push({ name: 'UI/UX & State Suite', ...uiRes });
 
+    const aiRes = await runAITests();
+    suiteResults.push({ name: 'AI & Automations Suite', ...aiRes });
+
+    const notifRes = await runNotificationTests();
+    suiteResults.push({ name: 'Notification Module Suite', ...notifRes });
+
+    const valRes = await runDataValidationTests();
+    suiteResults.push({ name: 'Data Validation & DB Constraints', ...valRes });
+
     console.log('╔══════════════════════════════════════════════════════════════════╗');
     console.log('║                     FINAL QA AUDIT SUMMARY                       ║');
     console.log('╠══════════════════════════════════════════════════════════════════╣');
@@ -51,8 +63,8 @@ async function main() {
     let totalFailed = 0;
 
     for (const suite of suiteResults) {
-      const statusIcon = suite.failed === 0 ? '✅' : '❌';
-      const paddedName = suite.name.padEnd(35, ' ');
+      const statusIcon = suite.failed === 0 ? '[PASS]' : '[FAIL]';
+      const paddedName = suite.name.padEnd(31, ' ');
       console.log(`║ ${statusIcon} ${paddedName} : ${suite.passed} Passed, ${suite.failed} Failed ║`);
       totalPassed += suite.passed;
       totalFailed += suite.failed;

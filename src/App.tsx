@@ -14,6 +14,9 @@ import { ReportsPage } from './pages/ReportsPage.tsx';
 import { UsersPage } from './pages/UsersPage.tsx';
 import { SettingsPage } from './pages/SettingsPage.tsx';
 import { ProfilePage } from './pages/ProfilePage.tsx';
+import { AIAssistantPage } from './pages/AIAssistantPage.tsx';
+import { NotificationCenterPage } from './pages/NotificationCenterPage.tsx';
+import { AIAssistantDrawer } from './components/ai/AIAssistantDrawer.tsx';
 import { QRScannerModal } from './components/attendance/QRScannerModal.tsx';
 import { MobileBottomNav } from './components/layout/MobileBottomNav.tsx';
 import { RefreshCw, ShieldAlert, ArrowLeft } from 'lucide-react';
@@ -26,6 +29,8 @@ const PAGE_PERMISSIONS: Record<string, string[]> = {
   attendance: ['Administrator', 'HR Officer', 'Payroll Officer', 'Employee', 'Management'],
   payroll: ['Administrator', 'Payroll Officer', 'Management', 'Employee'],
   reports: ['Administrator', 'HR Officer', 'Payroll Officer', 'Management'],
+  'ai-assistant': ['Administrator', 'HR Officer', 'Payroll Officer', 'Employee', 'Management'],
+  notifications: ['Administrator', 'HR Officer', 'Payroll Officer', 'Employee', 'Management'],
   users: ['Administrator'],
   settings: ['Administrator'],
   profile: ['Administrator', 'HR Officer', 'Payroll Officer', 'Employee', 'Management'],
@@ -37,6 +42,30 @@ const MainLayout: React.FC = () => {
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // Track the logged in user ID to cleanly reset activePage on login, logout, or account switch
+  const prevUserIdRef = React.useRef<string | null>(null);
+
+  React.useEffect(() => {
+    if (!user) {
+      prevUserIdRef.current = null;
+      setActivePage('dashboard');
+    } else if (user.id !== prevUserIdRef.current) {
+      prevUserIdRef.current = user.id;
+      setActivePage('dashboard');
+    }
+  }, [user?.id]);
+
+  // If user role does not have permission to access current activePage, automatically fall back to dashboard
+  React.useEffect(() => {
+    if (user) {
+      const allowedRoles = PAGE_PERMISSIONS[activePage] || ['Administrator'];
+      const hasAccess = user.roleName === 'Administrator' || allowedRoles.includes(user.roleName);
+      if (!hasAccess) {
+        setActivePage('dashboard');
+      }
+    }
+  }, [user?.roleName, activePage]);
 
   if (isLoading) {
     return (
@@ -58,35 +87,10 @@ const MainLayout: React.FC = () => {
   // Frontend route authorization check
   const allowedRoles = PAGE_PERMISSIONS[activePage] || ['Administrator'];
   const hasAccess = user.roleName === 'Administrator' || allowedRoles.includes(user.roleName);
-
-  const renderAccessDenied = () => (
-    <div className="flex flex-col items-center justify-center py-16 text-center">
-      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-rose-100 text-rose-600 mb-4 shadow-md">
-        <ShieldAlert className="h-8 w-8" />
-      </div>
-      <h2 className="text-xl font-bold text-slate-900">Access Denied (403 Forbidden)</h2>
-      <p className="mt-2 max-w-md text-xs text-slate-600">
-        Your assigned role (<span className="font-bold text-slate-900">{user.roleName}</span>) does not have permission to access the <span className="font-bold capitalize text-slate-900">{activePage}</span> module.
-      </p>
-      <div className="mt-3 rounded-xl bg-slate-100 px-3.5 py-2 text-[11px] text-slate-500 border border-slate-200">
-        Permitted roles: {allowedRoles.join(', ')}
-      </div>
-      <button
-        onClick={() => setActivePage('dashboard')}
-        className="mt-6 flex items-center space-x-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-xs font-semibold text-white shadow-md hover:bg-indigo-700 transition"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        <span>Return to Safe Dashboard</span>
-      </button>
-    </div>
-  );
+  const safeActivePage = hasAccess ? activePage : 'dashboard';
 
   const renderActivePage = () => {
-    if (!hasAccess) {
-      return renderAccessDenied();
-    }
-
-    switch (activePage) {
+    switch (safeActivePage) {
       case 'dashboard':
         return (
           <DashboardPage
@@ -112,6 +116,10 @@ const MainLayout: React.FC = () => {
         return <SettingsPage />;
       case 'profile':
         return <ProfilePage />;
+      case 'ai-assistant':
+        return <AIAssistantPage />;
+      case 'notifications':
+        return <NotificationCenterPage onNavigate={setActivePage} />;
       default:
         return (
           <DashboardPage
@@ -127,7 +135,7 @@ const MainLayout: React.FC = () => {
       {/* Top Navbar */}
       <Navbar
         onOpenScanner={() => setIsScannerOpen(true)}
-        activePage={activePage}
+        activePage={safeActivePage}
         setActivePage={setActivePage}
         onToggleMobileSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
       />
@@ -135,7 +143,7 @@ const MainLayout: React.FC = () => {
       {/* Main Workspace Layout with Sidebar */}
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
-          activePage={activePage}
+          activePage={safeActivePage}
           setActivePage={setActivePage}
           onRefreshData={() => setRefreshKey((k) => k + 1)}
           isMobileOpen={isMobileSidebarOpen}
@@ -149,7 +157,7 @@ const MainLayout: React.FC = () => {
 
       {/* Mobile Bottom Navigation Bar */}
       <MobileBottomNav
-        activePage={activePage}
+        activePage={safeActivePage}
         setActivePage={setActivePage}
         onOpenScanner={() => setIsScannerOpen(true)}
         onOpenMenu={() => setIsMobileSidebarOpen(true)}
@@ -163,6 +171,9 @@ const MainLayout: React.FC = () => {
           setRefreshKey((k) => k + 1);
         }}
       />
+
+      {/* Persistent AI Copilot Assistant Drawer */}
+      <AIAssistantDrawer onOpenHub={() => setActivePage('ai-assistant')} />
     </div>
   );
 };

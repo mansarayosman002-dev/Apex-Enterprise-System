@@ -12,17 +12,17 @@ import { eq, and } from 'drizzle-orm';
 
 export async function runAttendanceTests() {
   console.log('====================================================');
-  console.log('⏱️  [5/9] STARTING ATTENDANCE ENGINE TEST SUITE');
+  console.log("[5/10] STARTING ATTENDANCE ENGINE TEST SUITE");
   console.log('====================================================');
   let passed = 0;
   let failed = 0;
 
   function assert(condition: boolean, testName: string, detail?: string) {
     if (condition) {
-      console.log(`  ✅ PASS: ${testName}`);
+      console.log(`  PASS: ${testName}`);
       passed++;
     } else {
-      console.error(`  ❌ FAIL: ${testName} - ${detail || 'Assertion failed'}`);
+      console.error(`  FAIL: ${testName} - ${detail || 'Assertion failed'}`);
       failed++;
     }
   }
@@ -122,7 +122,7 @@ export async function runAttendanceTests() {
   }
 
   // 7. Live Attendance Workflow & Edge Case Tests
-  const [firstDept] = await db.select().from(departments).limit(1);
+  const [firstDept]= await db.select().from(departments).limit(1);
   let testEmpId: number | null = null;
   let testQrValue: string = '';
 
@@ -154,12 +154,10 @@ export async function runAttendanceTests() {
     const duplicateCheckIn = await processQRScan(testQrValue, 'check_in');
     assert(
       !duplicateCheckIn.success || duplicateCheckIn.type === 'info',
-      'Duplicate check-in safely detected and prevented'
-    );
+      'Duplicate check-in safely detected and prevented');
     assert(
       duplicateCheckIn.message.includes('already recorded'),
-      'Duplicate check-in returns informational message'
-    );
+      'Duplicate check-in returns informational message');
 
     // D. Valid Check-Out
     const validCheckOut = await processQRScan(testQrValue, 'check_out');
@@ -169,9 +167,8 @@ export async function runAttendanceTests() {
     // E. Re-scan after completed daily shift
     const completeReScan = await processQRScan(testQrValue, 'auto');
     assert(
-      completeReScan.type === 'info' && completeReScan.message.includes('already recorded'),
-      'Re-scan after full completed shift informs user attendance is already recorded'
-    );
+      completeReScan.type === 'info'&& completeReScan.message.includes('already recorded'),
+      'Re-scan after full completed shift informs user attendance is already recorded');
   } catch (e: any) {
     assert(false, 'Live attendance workflow check', e.message);
   }

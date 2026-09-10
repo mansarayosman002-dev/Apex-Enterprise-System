@@ -17,7 +17,7 @@ let memoryToken: string | null = null;
 
 export const getStoredToken = (): string | null => {
   if (typeof window !== 'undefined' && window.localStorage) {
-    return localStorage.getItem(TOKEN_STORAGE_KEY);
+    return localStorage.getItem(TOKEN_STORAGE_KEY) || localStorage.getItem('token');
   }
   return memoryToken;
 };
@@ -26,6 +26,7 @@ export const setStoredToken = (token: string): void => {
   memoryToken = token;
   if (typeof window !== 'undefined' && window.localStorage) {
     localStorage.setItem(TOKEN_STORAGE_KEY, token);
+    localStorage.setItem('token', token);
   }
 };
 
@@ -33,6 +34,7 @@ export const clearStoredToken = (): void => {
   memoryToken = null;
   if (typeof window !== 'undefined' && window.localStorage) {
     localStorage.removeItem(TOKEN_STORAGE_KEY);
+    localStorage.removeItem('token');
   }
 };
 
@@ -56,6 +58,12 @@ async function apiRequest<T>(endpoint: string, options: RequestInit = {}, retrie
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
+      if (response.status === 401) {
+        clearStoredToken();
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('apex:auth-expired', { detail: { message: data.error || 'Session expired' } }));
+        }
+      }
       const errorMessage = data.error || data.message || `Request failed with status ${response.status}`;
       throw new Error(errorMessage);
     }
@@ -146,6 +154,14 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(empData),
     }),
+  uploadEmployeePhoto: (employeeId: number, photoData: string) =>
+    apiRequest<{ success: boolean; message: string; photoUrl: string; employee: any }>(
+      `/api/employees/${employeeId}/photo`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ photoData }),
+      }
+    ),
   deleteEmployee: (id: number) =>
     apiRequest<{ success: boolean; message: string; employee?: any }>(`/api/employees/${id}`, {
       method: 'DELETE',
@@ -163,6 +179,17 @@ export const api = {
     apiRequest<ScanResult>('/api/attendance/scan', {
       method: 'POST',
       body: JSON.stringify(payload),
+    }),
+  syncOfflineAttendance: (punches: Array<{ id: string; qrValue: string; mode?: string; timestamp: string }>) =>
+    apiRequest<{
+      success: boolean;
+      total: number;
+      synced: number;
+      failed: number;
+      results: Array<{ id: string; success: boolean; message: string; type: string; employee?: any; attendance?: any }>;
+    }>('/api/attendance/sync-offline', {
+      method: 'POST',
+      body: JSON.stringify({ punches }),
     }),
   getAttendance: (filters?: {
     date?: string;
@@ -367,9 +394,184 @@ export const api = {
       body: JSON.stringify(settings),
     }),
 
+  // Bulk Data Import & Upsert
+  bulkImportEmployees: (employees: any[]) =>
+    apiRequest<{
+      success: boolean;
+      total: number;
+      inserted: number;
+      updated: number;
+      errors: Array<{ row: number; identifier: string; error: string }>;
+      details?: Array<{ employeeCode: string; name: string; action: 'inserted' | 'updated' }>;
+    }>('/api/employees/bulk-import', {
+      method: 'POST',
+      body: JSON.stringify({ employees }),
+    }),
+  bulkImportAttendance: (records: any[]) =>
+    apiRequest<{
+      success: boolean;
+      total: number;
+      inserted: number;
+      updated: number;
+      errors: Array<{ row: number; identifier: string; error: string }>;
+      details?: Array<{ employeeCode: string; date: string; action: 'inserted' | 'updated'; status: string }>;
+    }>('/api/attendance/bulk-import', {
+      method: 'POST',
+      body: JSON.stringify({ records }),
+    }),
+
+  // PostgreSQL Database Diagnostics & Status
+  getDatabaseStatus: () =>
+    apiRequest<{
+      status: string;
+      engine: string;
+      version: string;
+      database: string;
+      user: string;
+      port: number;
+      serverTime: string;
+      latencyMs: number;
+      tableCounts: Record<string, number>;
+    }>('/api/database/status'),
+
   // Re-seed demo data
   reseedDatabase: () =>
     apiRequest<{ success: boolean; message: string }>('/api/seed', {
       method: 'POST',
+    }),
+
+  // AI HR & Payroll Assistant
+  aiChat: (data: { message?: string; conversationId?: number; confirmedAction?: any }) =>
+    apiRequest<{
+      conversationId: number;
+      message: string;
+      requiresConfirmation?: boolean;
+      pendingAction?: {
+        toolName: string;
+        arguments: Record<string, any>;
+        previewText: string;
+      };
+    }>('/api/ai/chat', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  aiConfirmAction: (data: { conversationId?: number; confirmed: boolean; action: any }) =>
+    apiRequest<{ success: boolean; message: string; result?: any }>('/api/ai/confirm-action', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  getAiConversations: () =>
+    apiRequest<Array<{ id: number; title: string; createdAt: string; updatedAt: string }>>('/api/ai/conversations'),
+
+  getAiActivity: (limit = 20) =>
+    apiRequest<any[]>(`/api/ai/activity?limit=${limit}`),
+
+  getAiAutomations: () =>
+    apiRequest<any[]>('/api/ai/automations'),
+
+  updateAiAutomationStatus: (id: number, active: boolean) =>
+    apiRequest<any>(`/api/ai/automations/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ active }),
+    }),
+
+  testAiAutomation: (id: number) =>
+    apiRequest<any>(`/api/ai/automations/${id}/test`, {
+      method: 'POST',
+    }),
+
+  getAiAnomalies: () =>
+    apiRequest<any[]>('/api/ai/anomalies'),
+
+  // Notifications
+  getNotifications: (limit = 25) =>
+    apiRequest<{ notifications: any[]; unreadCount: number }>(`/api/notifications?limit=${limit}`),
+
+  getNotificationsList: (params?: {
+    category?: string;
+    type?: string;
+    isRead?: boolean;
+    search?: string;
+    page?: number;
+    limit?: number;
+  }) => {
+    const query = new URLSearchParams();
+    if (params?.category) query.set('category', params.category);
+    if (params?.type) query.set('type', params.type);
+    if (params?.isRead !== undefined) query.set('isRead', String(params.isRead));
+    if (params?.search) query.set('search', params.search);
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.limit) query.set('limit', String(params.limit));
+    return apiRequest<{ notifications: any[]; totalCount: number; unreadCount: number }>(
+      `/api/notifications?${query.toString()}`
+    );
+  },
+
+  getNotificationUnreadCount: () =>
+    apiRequest<{ unreadCount: number }>('/api/notifications/unread-count'),
+
+  markNotificationRead: (id: number) =>
+    apiRequest<any>(`/api/notifications/${id}/read`, {
+      method: 'PATCH',
+    }),
+
+  markAllNotificationsRead: () =>
+    apiRequest<{ success: boolean; message: string }>('/api/notifications/read-all', {
+      method: 'PATCH',
+    }),
+
+  deleteNotification: (id: number) =>
+    apiRequest<{ success: boolean; message: string }>(`/api/notifications/${id}`, {
+      method: 'DELETE',
+    }),
+
+  sendNotification: (payload: any) =>
+    apiRequest<any>('/api/notifications/send', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  broadcastNotification: (payload: any) =>
+    apiRequest<{ success: boolean; message: string; count: number }>('/api/notifications/broadcast', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  getNotificationPreferences: () =>
+    apiRequest<any>('/api/notifications/preferences'),
+
+  updateNotificationPreferences: (payload: any) =>
+    apiRequest<any>('/api/notifications/preferences', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }),
+
+  getNotificationTemplates: () =>
+    apiRequest<any[]>('/api/notifications/templates'),
+
+  createNotificationTemplate: (payload: any) =>
+    apiRequest<any>('/api/notifications/templates', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  getNotificationAnalytics: () =>
+    apiRequest<any>('/api/notifications/analytics'),
+
+  getNotificationHistory: (limit = 50) =>
+    apiRequest<any[]>(`/api/notifications/history?limit=${limit}`),
+
+  testNotificationChannel: (payload: any) =>
+    apiRequest<{ success: boolean; message: string; notification?: any }>('/api/notifications/test', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  shareAiResponse: (data: { targetEmployeeId: number; title?: string; message: string; note?: string }) =>
+    apiRequest<{ success: boolean; message: string; notification?: any }>('/api/ai/share', {
+      method: 'POST',
+      body: JSON.stringify(data),
     }),
 };

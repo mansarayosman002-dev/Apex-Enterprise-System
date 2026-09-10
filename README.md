@@ -4,7 +4,7 @@ An enterprise-grade, full-stack Academic Information & Human Resource Management
 
 ---
 
-## 🏛️ System Architecture
+## System Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -30,7 +30,7 @@ An enterprise-grade, full-stack Academic Information & Human Resource Management
 
 ---
 
-## 🚀 Key Modules & Functional Workflows
+## Key Modules & Functional Workflows
 
 1. **Role-Based Access Control (RBAC)**:
    - **Administrator**: Full administrative control across all 10 modules (Users, Settings, Audit, Payroll, Employees, Attendance, Overtime, Departments, QR Codes, Reports).
@@ -58,7 +58,7 @@ An enterprise-grade, full-stack Academic Information & Human Resource Management
 
 ---
 
-## 👥 Demo User Accounts
+## Demo User Accounts
 
 The database comes pre-seeded with five ready-to-test accounts representing each organizational role:
 
@@ -72,7 +72,7 @@ The database comes pre-seeded with five ready-to-test accounts representing each
 
 ---
 
-## 🔌 API Endpoint Specifications
+## API Endpoint Specifications
 
 ### Authentication
 - `POST /api/auth/login` - Authenticate username & password; returns JWT token and user profile.
@@ -115,7 +115,7 @@ The database comes pre-seeded with five ready-to-test accounts representing each
 
 ---
 
-## 🛠️ Local Development & Setup
+## Local Development & Setup
 
 ### Prerequisites
 - Node.js >= 18.0.0
@@ -155,7 +155,7 @@ The database comes pre-seeded with five ready-to-test accounts representing each
 
 ---
 
-## 📦 Production Deployment
+## Production Deployment
 
 1. **Build the Application**:
    ```bash

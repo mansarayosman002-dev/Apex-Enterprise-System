@@ -306,15 +306,15 @@ async function runTests() {
       const isExpected = test.expectedStatus.includes(status);
 
       if (isExpected) {
-        console.log(`✅ PASS: [${test.role}] ${test.name} -> HTTP ${status}`);
+        console.log(`PASS: [${test.role}] ${test.name} -> HTTP ${status}`);
         passed++;
       } else {
         const bodyText = await response.text();
-        console.error(`❌ FAIL: [${test.role}] ${test.name} -> Got HTTP ${status}, Expected ${test.expectedStatus.join(', ')}. Response: ${bodyText.slice(0, 150)}`);
+        console.error(`FAIL: [${test.role}] ${test.name} -> Got HTTP ${status}, Expected ${test.expectedStatus.join(', ')}. Response: ${bodyText.slice(0, 150)}`);
         failed++;
       }
     } catch (err: any) {
-      console.error(`❌ ERROR: [${test.role}] ${test.name} -> ${err.message}`);
+      console.error(`ERROR: [${test.role}] ${test.name} -> ${err.message}`);
       failed++;
     }
   }

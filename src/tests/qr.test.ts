@@ -12,22 +12,22 @@ import { eq } from 'drizzle-orm';
 
 export async function runQRTests() {
   console.log('====================================================');
-  console.log('📱 [4/9] STARTING QR CODE TEST SUITE');
+  console.log("[4/10] STARTING QR CODE TEST SUITE");
   console.log('====================================================');
   let passed = 0;
   let failed = 0;
 
   function assert(condition: boolean, testName: string, detail?: string) {
     if (condition) {
-      console.log(`  ✅ PASS: ${testName}`);
+      console.log(`  PASS: ${testName}`);
       passed++;
     } else {
-      console.error(`  ❌ FAIL: ${testName} - ${detail || 'Assertion failed'}`);
+      console.error(`  FAIL: ${testName} - ${detail || 'Assertion failed'}`);
       failed++;
     }
   }
 
-  const [firstDept] = await db.select().from(departments).limit(1);
+  const [firstDept]= await db.select().from(departments).limit(1);
   const deptId = firstDept?.id || 1;
 
   let testEmpId: number | null = null;
@@ -102,7 +102,7 @@ export async function runQRTests() {
   if (testEmpId) {
     try {
       // Reactivate employee for regeneration test
-      await db.update(employees).set({ status: 'active' }).where(eq(employees.id, testEmpId));
+      await db.update(employees).set({ status: 'active'}).where(eq(employees.id, testEmpId));
 
       const oldQrValue = testQrValue;
       const regen = await regenerateEmployeeQRCode(testEmpId);
@@ -123,7 +123,7 @@ export async function runQRTests() {
   try {
     const allQrs = await getAllQRCodes();
     assert(Array.isArray(allQrs) && allQrs.length > 0, 'getAllQRCodes returns valid array of QR codes');
-    assert(allQrs.every((q) => typeof q.qrValue === 'string' && typeof q.employeeName === 'string'), 'All QR items contain required metadata');
+    assert(allQrs.every((q) => typeof q.qrValue === 'string'&& typeof q.employeeName === 'string'), 'All QR items contain required metadata');
   } catch (e: any) {
     assert(false, 'Bulk QR code listing', e.message);
   }

@@ -7,24 +7,24 @@ import { eq } from 'drizzle-orm';
 
 export async function runAuthTests() {
   console.log('====================================================');
-  console.log('🔐 [1/9] STARTING AUTHENTICATION TEST SUITE');
+  console.log("[1/10] STARTING AUTHENTICATION TEST SUITE");
   console.log('====================================================');
   let passed = 0;
   let failed = 0;
 
   function assert(condition: boolean, testName: string, detail?: string) {
     if (condition) {
-      console.log(`  ✅ PASS: ${testName}`);
+      console.log(`  PASS: ${testName}`);
       passed++;
     } else {
-      console.error(`  ❌ FAIL: ${testName} - ${detail || 'Assertion failed'}`);
+      console.error(`  FAIL: ${testName} - ${detail || 'Assertion failed'}`);
       failed++;
     }
   }
 
   // 1. Valid Login Credential Verification
   try {
-    const [adminUser] = await db
+    const [adminUser]= await db
       .select({
         id: users.id,
         username: users.username,
@@ -50,7 +50,7 @@ export async function runAuthTests() {
 
   // 2. Invalid Login Password
   try {
-    const [adminUser] = await db.select().from(users).where(eq(users.username, 'admin'));
+    const [adminUser]= await db.select().from(users).where(eq(users.username, 'admin'));
     if (adminUser) {
       const isWrongPassword = await bcrypt.compare('wrongPassword_123', adminUser.passwordHash);
       assert(!isWrongPassword, 'Invalid password correctly fails bcrypt compare');
@@ -61,10 +61,10 @@ export async function runAuthTests() {
 
   // 3. Inactive Account Login Check
   try {
-    const [anyRole] = await db.select().from(roles).limit(1);
+    const [anyRole]= await db.select().from(roles).limit(1);
     // Create temporary inactive user for test
     const dummyPasswordHash = await bcrypt.hash('testpass123', 10);
-    const [inactiveUser] = await db
+    const [inactiveUser]= await db
       .insert(users)
       .values({
         username: `inactive_test_${Date.now()}`,
@@ -92,7 +92,7 @@ export async function runAuthTests() {
     };
 
     const token = generateToken(payload);
-    assert(typeof token === 'string' && token.length > 20, 'JWT Token generated successfully');
+    assert(typeof token === 'string'&& token.length > 20, 'JWT Token generated successfully');
 
     const decoded = jwt.decode(token) as any;
     assert(decoded.id === 999, 'JWT decoded contains correct user ID');
@@ -126,7 +126,7 @@ export async function runAuthTests() {
 
   // 6. Tampered / Invalid Signature JWT Handling
   try {
-    const validToken = generateToken({ id: 1, username: 'admin', roleId: 1, roleName: 'Administrator' });
+    const validToken = generateToken({ id: 1, username: 'admin', roleId: 1, roleName: 'Administrator'});
     const forgedToken = validToken.substring(0, validToken.length - 8) + 'FAKE1234';
 
     let signatureRejected = false;

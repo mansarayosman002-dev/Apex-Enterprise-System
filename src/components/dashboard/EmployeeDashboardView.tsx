@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../context/AuthContext.tsx';
+import { PHOTO_UPDATED_EVENT, EmployeePhotoUpdateDetail, withPhotoCacheBuster } from '../../utils/photoSync.ts';
 import {
   UserCheck,
   QrCode,
@@ -20,6 +22,11 @@ import { StatCard } from '../common/StatCard.tsx';
 import { Badge } from '../common/Badge.tsx';
 import { OvertimeRequestModal } from '../attendance/OvertimeRequestModal.tsx';
 import { PayslipModal } from '../attendance/PayslipModal.tsx';
+import {
+  EmployeeIDBadge,
+  EmployeeBadgeData,
+  printEmployeeBadge,
+} from '../common/EmployeeIDBadge.tsx';
 
 interface EmployeeDashboardViewProps {
   employee: Employee | null;
@@ -42,44 +49,123 @@ export const EmployeeDashboardView: React.FC<EmployeeDashboardViewProps> = ({
   setActivePage,
   onRefreshData,
 }) => {
+  const { user } = useAuth();
   const [isOTModalOpen, setIsOTModalOpen] = useState(false);
   const [selectedPayslip, setSelectedPayslip] = useState<PayrollRecord | null>(null);
+  const [photoError, setPhotoError] = useState<boolean>(false);
+  const [photoVersion, setPhotoVersion] = useState<number>(Date.now());
+
+  // Fallback to auth user's employee if employee prop not fully loaded yet
+  const currentEmp = employee || user?.employee || null;
+
+  useEffect(() => {
+    const handlePhotoUpdate = (e: Event) => {
+      const detail = (e as CustomEvent<EmployeePhotoUpdateDetail>).detail;
+      if (!detail) return;
+      if (
+        currentEmp &&
+        (currentEmp.id === detail.employeeId ||
+          currentEmp.employeeCode === detail.employeeCode)
+      ) {
+        setPhotoVersion(Date.now());
+        setPhotoError(false);
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener(PHOTO_UPDATED_EVENT, handlePhotoUpdate);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener(PHOTO_UPDATED_EVENT, handlePhotoUpdate);
+      }
+    };
+  }, [currentEmp]);
+
+  const rawPhoto =
+    currentEmp?.photoUrl ||
+    user?.photoUrl ||
+    (currentEmp?.employeeCode ? `/uploads/employees/${currentEmp.employeeCode}.jpg` : null) ||
+    (user?.employeeId ? `/uploads/employees/EMP-${user.employeeId}.jpg` : null);
+
+  const resolvedPhoto = withPhotoCacheBuster(rawPhoto, photoVersion);
+
+  const initials = currentEmp
+    ? `${currentEmp.firstName.charAt(0)}${currentEmp.lastName.charAt(0)}`.toUpperCase()
+    : (user?.username?.substring(0, 2).toUpperCase() || 'EM');
 
   // Today's log
   const todayStr = new Date().toISOString().split('T')[0];
   const todayLog = attendanceLogs.find((a) => a.attendanceDate === todayStr);
 
-  // Calculations
-  const totalDaysPresent = attendanceLogs.length;
+  // Quick stats calculations
+  const totalDaysPresent = attendanceLogs.filter(
+    (a) => a.status === 'Present' || a.status === 'Late'
+  ).length;
+
   const totalWorkingHours = attendanceLogs.reduce(
-    (s, a) => s + parseFloat(a.workingHours?.toString() || '0'),
+    (acc, curr) => acc + (parseFloat(curr.totalHours?.toString() || '0') || 0),
     0
   );
-  const totalOTHours = attendanceLogs.reduce(
-    (s, a) => s + parseFloat(a.overtimeHours?.toString() || '0'),
-    0
-  );
+
+  const totalOTHours = overtimeClaims
+    .filter((o) => o.status === 'Approved')
+    .reduce((acc, curr) => acc + (parseFloat(curr.hours?.toString() || '0') || 0), 0);
 
   const latestPayslip = payrollRecords[0] || null;
 
   return (
     <div className="space-y-6">
       {/* 1. Welcome & Employee Profile Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-6 text-white shadow-xl border border-slate-800">
-        <div className="space-y-1">
-          <div className="inline-flex items-center space-x-2 rounded-full bg-indigo-500/20 px-3 py-0.5 text-xs font-semibold text-indigo-300 backdrop-blur-xs border border-indigo-500/30">
-            <UserCheck className="h-3.5 w-3.5" />
-            <span>Employee Self-Service Portal</span>
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-6 text-white shadow-xl border border-slate-800 gap-5">
+        <div className="flex items-center space-x-4 sm:space-x-5">
+          {/* Employee Passport Profile Picture */}
+          <div className="relative shrink-0">
+            <div className="h-16 w-16 sm:h-20 sm:w-20 rounded-2xl overflow-hidden ring-2 ring-indigo-400/50 shadow-2xl bg-slate-800 flex items-center justify-center">
+              {resolvedPhoto && !photoError ? (
+                <img
+                  src={resolvedPhoto}
+                  alt={`${currentEmp?.firstName || 'Employee'} Profile`}
+                  className="h-full w-full object-cover object-top"
+                  onError={() => setPhotoError(true)}
+                />
+              ) : (
+                <div className="h-full w-full flex items-center justify-center bg-indigo-600 text-white font-bold text-xl sm:text-2xl">
+                  {initials}
+                </div>
+              )}
+            </div>
+            {/* Active Status Badge Indicator */}
+            <span
+              className="absolute -bottom-1 -right-1 flex h-4 w-4"
+              title="Active Employee Status"
+            >
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-500 ring-2 ring-slate-900"></span>
+            </span>
           </div>
-          <h1 className="text-xl md:text-2xl font-bold tracking-tight">
-            {employee ? `${employee.firstName} ${employee.lastName}` : 'Employee Console'}
-          </h1>
-          <p className="text-xs text-slate-300">
-            {employee?.position || 'Staff'} • {employee?.departmentName || 'Apex Enterprise'} • ID: {employee?.employeeCode || 'EMP-1001'}
-          </p>
+
+          <div className="space-y-1">
+            <div className="inline-flex items-center space-x-2 rounded-full bg-indigo-500/20 px-3 py-0.5 text-xs font-semibold text-indigo-300 backdrop-blur-xs border border-indigo-500/30">
+              <UserCheck className="h-3.5 w-3.5" />
+              <span>Employee Self-Service Portal</span>
+            </div>
+            <h1 className="text-xl md:text-2xl font-bold tracking-tight text-white">
+              {currentEmp ? `${currentEmp.firstName} ${currentEmp.lastName}` : 'Employee Console'}
+            </h1>
+            <p className="text-xs text-slate-300 flex flex-wrap items-center gap-1.5">
+              <span>{currentEmp?.position || 'Staff'}</span>
+              <span>•</span>
+              <span>{currentEmp?.departmentName || 'Apex Enterprise'}</span>
+              <span>•</span>
+              <span className="font-mono bg-indigo-500/30 px-2 py-0.5 rounded text-indigo-200 border border-indigo-400/20">
+                ID: {currentEmp?.employeeCode || (user?.employeeId ? `EMP-${user.employeeId}` : 'EMP-1001')}
+              </span>
+            </p>
+          </div>
         </div>
 
-        <div className="mt-4 md:mt-0 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-2.5 w-full md:w-auto">
+        <div className="mt-2 md:mt-0 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-2.5 w-full md:w-auto">
           <button
             onClick={() => setIsOTModalOpen(true)}
             className="flex items-center justify-center space-x-1.5 rounded-xl border border-indigo-400/40 bg-indigo-500/20 px-3.5 py-2 text-xs font-semibold text-white hover:bg-indigo-500/30 transition shadow-xs"
@@ -157,54 +243,45 @@ export const EmployeeDashboardView: React.FC<EmployeeDashboardViewProps> = ({
             <p className="text-xs text-slate-500 dark:text-slate-400">Scan at any terminal to verify check-in & check-out</p>
           </div>
 
-          <div className="relative rounded-2xl border-2 border-indigo-600/30 bg-gradient-to-b from-indigo-50/40 dark:from-indigo-950/30 to-white dark:to-slate-900 p-5 shadow-md w-full max-w-[280px]">
-            <div className="flex items-center justify-between border-b border-indigo-100 dark:border-indigo-900/40 pb-2 mb-3">
-              <div className="flex items-center space-x-1.5 font-bold text-xs text-indigo-950 dark:text-indigo-200">
-                <Building2 className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
-                <span>Apex Enterprise</span>
-              </div>
-              <span className="rounded bg-indigo-600 px-1.5 py-0.2 text-[9px] font-bold text-white uppercase">
-                Active
-              </span>
-            </div>
-
-            {employee?.qrCode?.dataUrl ? (
-              <div className="flex justify-center my-2">
-                <img
-                  src={employee.qrCode.dataUrl}
-                  alt="Employee QR Code"
-                  className="h-36 w-36 object-contain rounded-xl border border-slate-200 dark:border-slate-700 bg-white p-1 shadow-2xs"
-                />
-              </div>
-            ) : (
-              <div className="flex h-36 w-36 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 mx-auto">
-                <QrCode className="h-10 w-10" />
-              </div>
-            )}
-
-            <div className="mt-3">
-              <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-                {employee ? `${employee.firstName} ${employee.lastName}` : 'Staff Member'}
-              </h4>
-              <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">{employee?.position}</p>
-              <p className="text-[11px] font-mono text-slate-400 dark:text-slate-500 mt-1">{employee?.employeeCode}</p>
-            </div>
+          {/* Official Portrait ID Badge with Passport Photo, Logo & QR Code */}
+          <div className="w-full flex justify-center py-1">
+            <EmployeeIDBadge
+              badge={{
+                fullName: currentEmp ? `${currentEmp.firstName} ${currentEmp.lastName}` : (user?.username || 'Staff Member'),
+                jobTitle: currentEmp?.position || user?.roleName || 'Employee',
+                department: currentEmp?.departmentName || 'Apex Enterprise',
+                employeeId: currentEmp?.employeeCode || (user?.employeeId ? `EMP-${user.employeeId}` : 'EMP'),
+                rawEmployeeId: currentEmp?.id || user?.employeeId,
+                employeeCode: currentEmp?.employeeCode,
+                photoUrl: currentEmp?.photoUrl || user?.photoUrl,
+                qrCodeUrl: employee?.qrCode?.dataUrl,
+                status: currentEmp?.status || 'Active',
+              }}
+              variant="compact"
+            />
           </div>
 
           <div className="flex w-full space-x-2">
             <button
               onClick={() => {
-                if (employee?.qrCode?.dataUrl) {
-                  const a = document.createElement('a');
-                  a.href = employee.qrCode.dataUrl;
-                  a.download = `QR_${employee.employeeCode}.png`;
-                  a.click();
-                }
+                const bData: EmployeeBadgeData = {
+                  fullName: currentEmp ? `${currentEmp.firstName} ${currentEmp.lastName}` : (user?.username || 'Staff Member'),
+                  jobTitle: currentEmp?.position || user?.roleName || 'Employee',
+                  department: currentEmp?.departmentName || 'Apex Enterprise',
+                  employeeId: currentEmp?.employeeCode || (user?.employeeId ? `EMP-${user.employeeId}` : 'EMP'),
+                  rawEmployeeId: currentEmp?.id || user?.employeeId,
+                  employeeCode: currentEmp?.employeeCode,
+                  photoUrl: currentEmp?.photoUrl || user?.photoUrl,
+                  qrCodeUrl: employee?.qrCode?.dataUrl,
+                  status: currentEmp?.status || 'Active',
+                };
+                printEmployeeBadge(bData);
               }}
               className="flex-1 flex items-center justify-center space-x-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition shadow-2xs"
+              title="Print official portrait badge (53.98 × 85.60 mm)"
             >
-              <Download className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
-              <span>Save Badge</span>
+              <Printer className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+              <span>Print Badge</span>
             </button>
             <button
               onClick={onOpenScanner}

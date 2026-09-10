@@ -8,7 +8,6 @@ import {
   Building,
   Users,
   FileText,
-  Printer,
   Download,
   ArrowRight,
   ShieldCheck,
@@ -91,13 +90,6 @@ export const ManagementDashboardView: React.FC<ManagementDashboardViewProps> = (
           >
             <BarChart3 className="h-4 w-4 text-purple-300" />
             <span>Executive Reports</span>
-          </button>
-          <button
-            onClick={() => window.print()}
-            className="flex items-center space-x-2 rounded-xl bg-purple-600 px-4 py-2 text-xs font-semibold text-white shadow-md hover:bg-purple-500 transition"
-          >
-            <Printer className="h-4 w-4" />
-            <span>Print Summary</span>
           </button>
         </div>
       </div>

@@ -1,12 +1,12 @@
-// Audio feedback generator using Web Audio API
-export const playSound = (type: 'success' | 'error' | 'checkout' | 'beep') => {
+export const playSound = (type: 'success' | 'error' | 'checkout' | 'beep' | 'offline' | 'cooldown') => {
   try {
     const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioContext) return;
     const ctx = new AudioContext();
 
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
+    const osc = ctx.createGain ? ctx.createOscillator() : null;
+    const gain = ctx.createGain ? ctx.createGain() : null;
+    if (!osc || !gain) return;
     osc.connect(gain);
     gain.connect(ctx.destination);
 
@@ -35,6 +35,22 @@ export const playSound = (type: 'success' | 'error' | 'checkout' | 'beep') => {
       gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
       osc.start(now);
       osc.stop(now + 0.35);
+    } else if (type === 'offline') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(698.46, now); // F5
+      osc.frequency.setValueAtTime(1046.50, now + 0.1); // C6
+      gain.gain.setValueAtTime(0.12, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.28);
+      osc.start(now);
+      osc.stop(now + 0.28);
+    } else if (type === 'cooldown') {
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(360, now);
+      osc.frequency.setValueAtTime(300, now + 0.08);
+      gain.gain.setValueAtTime(0.1, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+      osc.start(now);
+      osc.stop(now + 0.2);
     } else if (type === 'error') {
       osc.type = 'sawtooth';
       osc.frequency.setValueAtTime(220, now);

@@ -17,7 +17,9 @@ import {
   Search,
   ShieldCheck,
   Trash2,
+  FileText,
 } from 'lucide-react';
+import { exportTableToCsv, exportTableToPdf } from '../utils/exportDocument.ts';
 import { PayslipModal } from '../components/attendance/PayslipModal.tsx';
 import { PayrollReviewModal } from '../components/payroll/PayrollReviewModal.tsx';
 import { PayrollPreviewModal } from '../components/payroll/PayrollPreviewModal.tsx';
@@ -158,33 +160,93 @@ export const PayrollPage: React.FC = () => {
       'Status',
       'Created At',
     ];
-    const rows = payrollRecords.map((r) => [
-      r.payrollPeriod,
-      r.employeeCode,
-      r.employeeName,
-      r.departmentName || '',
-      r.basicSalary,
-      r.overtimeHours || 0,
-      r.overtimeAmount,
-      r.allowances,
-      r.deductions,
-      r.grossSalary,
-      r.netSalary,
-      r.status,
-      r.createdAt,
-    ]);
 
-    const csvContent =
-      'data:text/csv;charset=utf-8,' +
-      [headers.join(','), ...rows.map((r) => r.map((cell) => `"${cell}"`).join(','))].join('\n');
+    const totalGross = payrollRecords.reduce((acc, r) => acc + parseFloat(r.grossSalary?.toString() || '0'), 0);
+    const totalNet = payrollRecords.reduce((acc, r) => acc + parseFloat(r.netSalary?.toString() || '0'), 0);
+    const totalOT = payrollRecords.reduce((acc, r) => acc + parseFloat(r.overtimeAmount?.toString() || '0'), 0);
 
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `payroll_ledger_${selectedPeriod}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    exportTableToCsv({
+      title: `Automated Payroll Ledger - Period ${selectedPeriod}`,
+      subtitle: 'Attendance-integrated compensation, overtime multipliers, allowances, deductions, and disbursements',
+      filenamePrefix: `payroll_ledger_${selectedPeriod}`,
+      metadata: {
+        'Payroll Period': selectedPeriod,
+        'Currency Baseline': currency.trim(),
+        'Total Records': payrollRecords.length,
+        'Total Net Disbursement': `${currency}${totalNet.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      },
+      headers: [
+        'Period',
+        'Employee Code',
+        'Employee Name',
+        'Department',
+        'Basic Salary (NLe)',
+        'OT Hours',
+        'OT Pay (NLe)',
+        'Allowances (NLe)',
+        'Deductions (NLe)',
+        'Gross Salary (NLe)',
+        'Net Salary (NLe)',
+        'Status',
+        'Processed Date',
+      ],
+      rows: payrollRecords.map((r) => [
+        r.payrollPeriod,
+        r.employeeCode,
+        r.employeeName,
+        r.departmentName || '',
+        parseFloat(r.basicSalary.toString()).toFixed(2),
+        r.overtimeHours || 0,
+        parseFloat(r.overtimeAmount.toString()).toFixed(2),
+        parseFloat(r.allowances.toString()).toFixed(2),
+        parseFloat(r.deductions.toString()).toFixed(2),
+        parseFloat(r.grossSalary.toString()).toFixed(2),
+        parseFloat(r.netSalary.toString()).toFixed(2),
+        r.status,
+        r.createdAt ? new Date(r.createdAt).toLocaleDateString() : '',
+      ]),
+      summaryRow: [
+        'TOTALS',
+        '',
+        `Count: ${payrollRecords.length}`,
+        '',
+        '',
+        '',
+        totalOT.toFixed(2),
+        '',
+        '',
+        totalGross.toFixed(2),
+        totalNet.toFixed(2),
+        '',
+        '',
+      ],
+    });
+  };
+
+  const exportPDF = () => {
+    if (payrollRecords.length === 0) return;
+    exportTableToPdf({
+      title: `Automated Payroll Ledger - Period ${selectedPeriod}`,
+      subtitle: 'Official compensation disbursements, overtime earnings, and net settlements',
+      filenamePrefix: `payroll_ledger_${selectedPeriod}`,
+      metadata: {
+        'Period': selectedPeriod,
+        'Currency': currency.trim(),
+        'Records': payrollRecords.length,
+      },
+      headers: ['Period', 'Code', 'Employee Name', 'Department', 'Basic', 'OT Pay', 'Gross', 'Net', 'Status'],
+      rows: payrollRecords.map((r) => [
+        r.payrollPeriod,
+        r.employeeCode,
+        r.employeeName,
+        r.departmentName || '',
+        parseFloat(r.basicSalary.toString()).toFixed(2),
+        parseFloat(r.overtimeAmount.toString()).toFixed(2),
+        parseFloat(r.grossSalary.toString()).toFixed(2),
+        parseFloat(r.netSalary.toString()).toFixed(2),
+        r.status,
+      ]),
+    });
   };
 
   const currency = settings?.currencySymbol
@@ -202,33 +264,46 @@ export const PayrollPage: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-2.5 w-full sm:w-auto">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={exportCSV}
-            className="flex items-center justify-center space-x-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-2xs transition"
+            title="Download formatted Excel CSV payroll ledger"
+            className="flex items-center justify-center space-x-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 sm:px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-2xs transition"
           >
-            <Download className="h-4 w-4 text-slate-500 dark:text-slate-400" />
-            <span>Export CSV</span>
+            <Download className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <span className="hidden sm:inline">Export CSV</span>
+            <span className="sm:hidden">CSV</span>
+          </button>
+          <button
+            onClick={exportPDF}
+            title="Download official PDF payroll ledger"
+            className="flex items-center justify-center space-x-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 sm:px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-2xs transition"
+          >
+            <FileText className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+            <span className="hidden sm:inline">Export PDF</span>
+            <span className="sm:hidden">PDF</span>
           </button>
           
           {payrollRecords.some((r) => r.status !== 'Approved' && r.status !== 'Paid') && (
             <button
               onClick={handleBatchApprove}
               disabled={isProcessingAll}
-              className="flex items-center justify-center space-x-1.5 rounded-xl border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/60 px-3.5 py-2 text-xs font-semibold text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 transition disabled:opacity-50"
+              className="flex items-center justify-center space-x-1.5 rounded-xl border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/60 px-3 sm:px-3.5 py-2 text-xs font-semibold text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 transition disabled:opacity-50"
             >
               <ShieldCheck className="h-4 w-4" />
-              <span>Approve All</span>
+              <span className="hidden sm:inline">Approve All</span>
+              <span className="sm:hidden">Approve</span>
             </button>
           )}
 
           <button
             onClick={handleOpenPreview}
             disabled={isPreviewLoading}
-            className="flex items-center justify-center space-x-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-indigo-700 transition disabled:opacity-50"
+            className="flex items-center justify-center space-x-1.5 rounded-xl bg-indigo-600 px-3.5 sm:px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-indigo-700 transition disabled:opacity-50"
           >
             {isPreviewLoading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Calculator className="h-4 w-4" />}
-            <span>Preview & Calculate</span>
+            <span className="hidden sm:inline">Preview & Calculate</span>
+            <span className="sm:hidden">Calculate</span>
           </button>
         </div>
       </div>
@@ -442,7 +517,7 @@ export const PayrollPage: React.FC = () => {
             </div>
 
             {/* Desktop Table View (hidden on mobile, visible on md+) */}
-            <div className="hidden md:block overflow-x-auto">
+            <div className="hidden md:block table-responsive-wrapper">
               <table className="w-full text-left text-xs min-w-[850px]">
                 <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
                   <tr>
