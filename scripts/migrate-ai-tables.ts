@@ -1,28 +1,9 @@
-import pg from 'pg';
-import dotenv from 'dotenv';
+import { pool } from '../src/db/index.ts';
 
-dotenv.config();
-
-const { Client } = pg;
-
-async function runMigration() {
-  console.log('========================================================');
-  console.log('RUNNING PHASE 1 MIGRATION: AI & NOTIFICATION TABLES');
-  console.log('========================================================\n');
-
-  const connectionString =
-    process.env.DATABASE_URL ||
-    `postgresql://${process.env.SQL_USER || 'postgres'}:${encodeURIComponent(process.env.SQL_PASSWORD || 'postgres')}@${process.env.SQL_HOST || 'localhost'}:${process.env.SQL_PORT || '5432'}/${process.env.SQL_DB_NAME || 'apex_hrms_db'}`;
-
-  const client = new Client({ connectionString });
-  await client.connect();
-  console.log(' Connected to PostgreSQL 18 on port 5432.');
-
+async function migrateAITables() {
+  console.log('=== Migrating AI Assistant PostgreSQL Tables ===');
+  const client = await pool.connect();
   try {
-    await client.query('BEGIN;');
-
-    // 1. ai_conversations
-    console.log('Creating table ai_conversations...');
     await client.query(`
       CREATE TABLE IF NOT EXISTS ai_conversations (
         id SERIAL PRIMARY KEY,
@@ -34,11 +15,7 @@ async function runMigration() {
       );
       CREATE INDEX IF NOT EXISTS idx_ai_conversations_user ON ai_conversations(user_id);
       CREATE INDEX IF NOT EXISTS idx_ai_conversations_created ON ai_conversations(created_at);
-    `);
 
-    // 2. ai_messages
-    console.log('Creating table ai_messages...');
-    await client.query(`
       CREATE TABLE IF NOT EXISTS ai_messages (
         id SERIAL PRIMARY KEY,
         conversation_id INTEGER NOT NULL REFERENCES ai_conversations(id) ON DELETE CASCADE,
@@ -46,15 +23,12 @@ async function runMigration() {
         content TEXT NOT NULL DEFAULT '',
         tool_calls TEXT,
         tool_call_id TEXT,
+        tool_name TEXT,
         created_at TIMESTAMP NOT NULL DEFAULT NOW()
       );
-      CREATE INDEX IF NOT EXISTS idx_ai_messages_conversation ON ai_messages(conversation_id);
+      CREATE INDEX IF NOT EXISTS idx_ai_messages_conv ON ai_messages(conversation_id);
       CREATE INDEX IF NOT EXISTS idx_ai_messages_created ON ai_messages(created_at);
-    `);
 
-    // 3. ai_activity_logs
-    console.log('Creating table ai_activity_logs...');
-    await client.query(`
       CREATE TABLE IF NOT EXISTS ai_activity_logs (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
@@ -71,57 +45,7 @@ async function runMigration() {
       CREATE INDEX IF NOT EXISTS idx_ai_activity_user ON ai_activity_logs(user_id);
       CREATE INDEX IF NOT EXISTS idx_ai_activity_op ON ai_activity_logs(operation);
       CREATE INDEX IF NOT EXISTS idx_ai_activity_created ON ai_activity_logs(created_at);
-    `);
 
-    // 4. notifications
-    console.log('Creating table notifications...');
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS notifications (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        employee_id INTEGER REFERENCES employees(id) ON DELETE CASCADE,
-        title TEXT NOT NULL,
-        message TEXT NOT NULL,
-        category TEXT NOT NULL DEFAULT 'System',
-        priority TEXT NOT NULL DEFAULT 'medium',
-        channel TEXT NOT NULL DEFAULT 'in_app',
-        status TEXT NOT NULL DEFAULT 'pending',
-        is_read BOOLEAN NOT NULL DEFAULT FALSE,
-        read_at TIMESTAMP,
-        scheduled_for TIMESTAMP,
-        failure_reason TEXT,
-        retry_count INTEGER NOT NULL DEFAULT 0,
-        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-        sent_at TIMESTAMP
-      );
-      CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
-      CREATE INDEX IF NOT EXISTS idx_notifications_emp ON notifications(employee_id);
-      CREATE INDEX IF NOT EXISTS idx_notifications_status ON notifications(status);
-      CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(is_read);
-      CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at);
-    `);
-
-    // 5. notification_preferences
-    console.log('Creating table notification_preferences...');
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS notification_preferences (
-        id SERIAL PRIMARY KEY,
-        employee_id INTEGER NOT NULL UNIQUE REFERENCES employees(id) ON DELETE CASCADE,
-        attendance_alerts BOOLEAN NOT NULL DEFAULT TRUE,
-        payroll_alerts BOOLEAN NOT NULL DEFAULT TRUE,
-        hr_announcements BOOLEAN NOT NULL DEFAULT TRUE,
-        system_alerts BOOLEAN NOT NULL DEFAULT TRUE,
-        preferred_channel TEXT NOT NULL DEFAULT 'in_app',
-        email_enabled BOOLEAN NOT NULL DEFAULT TRUE,
-        sms_enabled BOOLEAN NOT NULL DEFAULT FALSE,
-        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-      );
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_notif_pref_emp ON notification_preferences(employee_id);
-    `);
-
-    // 6. ai_automations
-    console.log('Creating table ai_automations...');
-    await client.query(`
       CREATE TABLE IF NOT EXISTS ai_automations (
         id SERIAL PRIMARY KEY,
         name TEXT NOT NULL,
@@ -131,7 +55,7 @@ async function runMigration() {
         condition_config TEXT,
         action_config TEXT,
         channel TEXT NOT NULL DEFAULT 'in_app',
-        is_active BOOLEAN NOT NULL DEFAULT FALSE,
+        is_active BOOLEAN NOT NULL DEFAULT false,
         created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
         last_run_at TIMESTAMP,
         next_run_at TIMESTAMP,
@@ -140,11 +64,7 @@ async function runMigration() {
       );
       CREATE INDEX IF NOT EXISTS idx_ai_automations_active ON ai_automations(is_active);
       CREATE INDEX IF NOT EXISTS idx_ai_automations_trigger ON ai_automations(trigger_type);
-    `);
 
-    // 7. ai_automation_executions
-    console.log('Creating table ai_automation_executions...');
-    await client.query(`
       CREATE TABLE IF NOT EXISTS ai_automation_executions (
         id SERIAL PRIMARY KEY,
         automation_id INTEGER NOT NULL REFERENCES ai_automations(id) ON DELETE CASCADE,
@@ -157,11 +77,7 @@ async function runMigration() {
       );
       CREATE INDEX IF NOT EXISTS idx_ai_exec_automation ON ai_automation_executions(automation_id);
       CREATE INDEX IF NOT EXISTS idx_ai_exec_time ON ai_automation_executions(executed_at);
-    `);
 
-    // 8. ai_anomalies
-    console.log('Creating table ai_anomalies...');
-    await client.query(`
       CREATE TABLE IF NOT EXISTS ai_anomalies (
         id SERIAL PRIMARY KEY,
         anomaly_type TEXT NOT NULL,
@@ -180,15 +96,65 @@ async function runMigration() {
       CREATE INDEX IF NOT EXISTS idx_ai_anomalies_detected ON ai_anomalies(detected_at);
     `);
 
-    await client.query('COMMIT;');
-    console.log('\nAll 8 AI & Notification tables successfully created in PostgreSQL 18!');
-  } catch (err) {
-    await client.query('ROLLBACK;');
-    console.error('Migration failed, rolled back:', err);
-    process.exit(1);
+    // Seed default Enterprise Automations if table is empty
+    const checkAutomations = await client.query('SELECT COUNT(*) FROM ai_automations');
+    if (parseInt(checkAutomations.rows[0].count, 10) === 0) {
+      await client.query(`
+        INSERT INTO ai_automations (name, description, trigger_type, trigger_config, condition_config, action_config, channel, is_active)
+        VALUES
+        (
+          'Daily Morning Late Arrival Scanner',
+          'Scans attendance punches at 08:35 AM and dispatches notifications for all employees marked late.',
+          'scheduled_time',
+          '{"time": "08:35"}',
+          '{"condition": "status = ''Late''"}',
+          '{"action": "notify_hr_and_employee", "template": "LATE_ATTENDANCE"}',
+          'in_app',
+          true
+        ),
+        (
+          'Evening Unclosed Shift Reconciler',
+          'Identifies active employees with check-in records who have not checked out by 17:30 PM.',
+          'scheduled_time',
+          '{"time": "17:30"}',
+          '{"condition": "check_out_time IS NULL"}',
+          '{"action": "flag_missing_checkout", "severity": "MEDIUM"}',
+          'in_app',
+          true
+        ),
+        (
+          'Payroll Calculation & Anomaly Auditor',
+          'Audits the current payroll period for negative net pay, missing tax withholdings, or excessive overtime.',
+          'manual_trigger',
+          '{}',
+          '{"check": "anomalies"}',
+          '{"action": "audit_payroll"}',
+          'in_app',
+          true
+        ),
+        (
+          'Weekly Attendance & Punctuality Digest',
+          'Compiles overall enterprise punctuality and attendance statistics for executive management.',
+          'scheduled_time',
+          '{"day": "Friday", "time": "17:00"}',
+          '{}',
+          '{"action": "generate_weekly_digest"}',
+          'in_app',
+          false
+        );
+      `);
+      console.log('Seeded 4 default enterprise automations.');
+    }
+
+    console.log('AI Assistant tables successfully migrated and verified.');
   } finally {
-    await client.end();
+    client.release();
   }
 }
 
-runMigration();
+migrateAITables()
+  .then(() => process.exit(0))
+  .catch((err) => {
+    console.error('Migration failed:', err);
+    process.exit(1);
+  });

@@ -1,5 +1,7 @@
 # APEX ENTERPRISE HRMS: AI ASSISTANT & ADVANCED SYSTEM FEATURES
+
 ## Final Year Project Dissertation Documentation & Technical Specification
+
 **Project Title:** Smart Employee Attendance and Payroll Management System  
 **Document Classification:** Architectural Specification, Feature Implementation, Security Framework, and Empirical Evaluation  
 **Target Academic Chapters:** Chapter 3 (System Design), Chapter 4 (Implementation), Chapter 5 (Testing & Evaluation), and Defense Appendices  
@@ -9,6 +11,7 @@
 ---
 
 ## TABLE OF CONTENTS
+
 1. [EXECUTIVE SUMMARY & SYSTEM SCOPE](#1-executive-summary--system-scope)
 2. [SYSTEM ARCHITECTURE & INTEGRATED DESIGN (CHAPTER 3 ADDITIONS)](#2-system-architecture--integrated-design)
    - 2.1 High-Level Multi-Tier Architectural Topology
@@ -26,6 +29,7 @@
    - 4.2 Priority Queue Architecture with Exponential Backoff
    - 4.3 Template Compilation & Salary Slip Privacy Shielding
    - 4.4 Delivery Logging, Read Receipts & Audit Tracing
+   - 4.5 Two-Way Recipient Reply Architecture & Conversation Threads
 5. [MULTI-LAYER DATA VALIDATION & POSTGRESQL CHECK CONSTRAINTS (CHAPTER 4.3)](#5-multi-layer-data-validation--postgresql-check-constraints)
    - 5.1 Dual-Tier Defense-in-Depth Validation Philosophy
    - 5.2 The 38 Relational PostgreSQL CHECK Constraints
@@ -105,7 +109,7 @@ The system adopts a modern multi-tier client-server architecture with separation
 The system enforces a strict zero-trust principle across five distinct corporate roles:
 
 | Functional Capability | Administrator (`ADMIN`) | HR Officer (`HR`) | Payroll Officer (`PAYROLL`) | Department Manager (`MANAGER`) | Employee (`EMPLOYEE`) |
-|---|:---:|:---:|:---:|:---:|:---:|
+| --- | :---: | :---: | :---: | :---: | :---: |
 | User Credential Management | **Full (CRUD)** | Read Only | None | None | Self Profile |
 | Employee Registration & Profiles | **Full (CRUD)** | **Full (CRUD)** | View Only | View Department | View Self |
 | Department & Shift Configuration | **Full (CRUD)** | **Full (CRUD)** | None | View Assigned | View Assigned |
@@ -114,14 +118,15 @@ The system enforces a strict zero-trust principle across five distinct corporate
 | Leave Request Management | Final Approval | Approve/Reject | View Approved | Initial Endorse | Submit / View Own |
 | Overtime Calculation & Approval | Override | Initial Review | Compute Payout | Approve Dept Hours | View Own OT |
 | Payroll Processing & Finalization | Approve & Lock | View Overview | **Full (Compute/Lock)** | View Dept Total | View Own Payslip |
-| Multi-Channel Notifications Dispatch| System-Wide | Department/Staff | Payment Slips | Team Alerts | Inbox View Only |
-| AI Copilot: Workforce Analytics | Unrestricted | Staff & Leaves | Compensation Only| Team Summaries | Personal Query Only |
-| AI Copilot: Sensitive Action Commits| With Confirm | Leaves/Shifts | Draft Runs | None | None |
-| System Configuration & Audit Logs | **Full (Audit/Config)**| None | None | None | None |
+| Multi-Channel Notifications Dispatch | System-Wide | Department/Staff | Payment Slips | Team Alerts | Inbox View Only |
+| AI Copilot: Workforce Analytics | Unrestricted | Staff & Leaves | Compensation Only | Team Summaries | Personal Query Only |
+| AI Copilot: Sensitive Action Commits | With Confirm | Leaves/Shifts | Draft Runs | None | None |
+| System Configuration & Audit Logs | **Full (Audit/Config)** | None | None | None | None |
 
 ### 2.3 End-to-End Authentication & Zero-Trust Token Lifecycle
 
 Authentication utilizes cryptographically signed JSON Web Tokens (JWT) adhering to RFC 7519:
+
 1. **Password Hashing:** Passwords stored in PostgreSQL are hashed using **Bcrypt** with salt factor $s = 10$. Passwords are never saved in plain text.
 2. **Payload Structure:** The JWT contains user identifier (`id`), username (`username`), role (`role`), and employee linkage (`employeeId`), signed with a 256-bit cryptographically secure secret (`JWT_SECRET`) using HMAC-SHA256 (`HS256`).
 3. **Session Invalidation & IDOR Defense:** All API endpoints processing sensitive operations (e.g., retrieving pay slips, viewing personal attendance records) extract `employeeId` directly from the authenticated token claims rather than trusting request parameter inputs (`req.params.id` or `req.body.employeeId`). This eliminates Insecure Direct Object References (IDOR).
@@ -176,7 +181,8 @@ The assistant interacts with system data exclusively via sandboxed function call
 └──────────────────────────────┴─────────────────────────────────────────┘
 ```
 
-#### Tool Schema Example (`get_attendance_summary`):
+#### Tool Schema Example (`get_attendance_summary`)
+
 ```json
 {
   "name": "get_attendance_summary",
@@ -195,6 +201,7 @@ The assistant interacts with system data exclusively via sandboxed function call
 ### 3.3 Dynamic RAG (Retrieval-Augmented Generation) & Knowledge Base
 
 The RAG engine (`src/ai/knowledge/`) grounds the assistant's advice in authoritative corporate policies and statutory legal documentation. The knowledge base is seeded with:
+
 1. **Apex HR Policy Handbook:** Standard working hours (08:30–17:30), 15-minute grace threshold, leave accrual schedules (21 annual days for full-time staff), disciplinary steps for tardiness.
 2. **Sierra Leone Statutory Labor Regulations:** Statutory minimum wage benchmarks, national public holidays, mandatory rest periods, and overtime multiplier regulations ($1.5\times$ for regular workdays, $2.0\times$ for Sundays and designated public holidays).
 
@@ -202,7 +209,8 @@ The RAG engine (`src/ai/knowledge/`) grounds the assistant's advice in authorita
 
 The mathematical engine embedded within the AI and payroll compute services enforces the statutory requirements of Sierra Leone (Finance Acts and NASSIT Act):
 
-#### 1. National Social Security & Insurance Trust (NASSIT):
+#### 1. National Social Security & Insurance Trust (NASSIT)
+
 - **Employee Pension Contribution:** $5.0\%$ of Gross Basic Wage deducted from the employee.
 - **Employer Social Contribution:** $10.0\%$ of Gross Basic Wage contributed by the employer.
 - **Total Statutory Remittance:** $15.0\%$ of Gross Basic Wage remitted monthly to NASSIT.
@@ -210,20 +218,22 @@ The mathematical engine embedded within the AI and payroll compute services enfo
 $$\text{NASSIT}_{\text{Employee}} = \text{Basic Salary} \times 0.05$$
 $$\text{NASSIT}_{\text{Employer}} = \text{Basic Salary} \times 0.10$$
 
-#### 2. Pay As You Earn (PAYE) Progressive Income Tax Bands (New Leones - NLe):
+#### 2. Pay As You Earn (PAYE) Progressive Income Tax Bands (New Leones - NLe)
+
 The progressive tax bands applied to taxable compensation ($\text{Gross Salary} - \text{NASSIT}_{\text{Employee}}$):
 
 $$\text{Taxable Income } (TI) = \text{Gross Salary} - \text{NASSIT}_{\text{Employee}}$$
 
 | Monthly Taxable Bracket (NLe) | Marginal Tax Rate | Bracket Computation |
-|---|:---:|---|
+| --- | :---: | --- |
 | First NLe 0 – 600.00 | **0%** | Tax-Free Threshold |
 | Next NLe 600.01 – 1,200.00 | **15%** | $(TI - 600) \times 0.15$ |
 | Next NLe 1,200.01 – 1,800.00 | **20%** | $(TI - 1200) \times 0.20$ |
 | Next NLe 1,800.01 – 2,400.00 | **25%** | $(TI - 1800) \times 0.25$ |
 | Excess above NLe 2,400.00 | **30%** | $(TI - 2400) \times 0.30$ |
 
-#### 3. Mathematical Overtime and Net Take-Home Salary Formulas:
+#### 3. Mathematical Overtime and Net Take-Home Salary Formulas
+
 $$\text{Hourly Base Rate} = \frac{\text{Basic Salary}}{W_{\text{days}} \times H_{\text{daily}}} = \frac{\text{Basic Salary}}{22 \times 8} = \frac{\text{Basic Salary}}{176}$$
 $$\text{Overtime Payout} = (\text{OT Hours}_{\text{Standard}} \times \text{Hourly Rate} \times 1.5) + (\text{OT Hours}_{\text{Holiday}} \times \text{Hourly Rate} \times 2.0)$$
 $$\text{Gross Earnings} = \text{Basic Salary} + \text{Overtime Payout} + \text{Allowances}$$
@@ -271,6 +281,7 @@ Communication between management, HR, payroll, and employees is handled by the d
 ### 4.1 Multi-Channel Dispatch Engine
 
 The notification subsystem delivers communications across four distinct channels:
+
 1. **In-App Notification Center:** Real-time persistence within the PostgreSQL `notifications` table, displayed via a floating badge counter and an interactive sliding inbox tray.
 2. **HTML Email Dispatch:** Responsive multi-part MIME emails with corporate styling, embedded branding, and security notices dispatched via SMTP.
 3. **WhatsApp Business Messaging:** Direct mobile notification delivery using WhatsApp Cloud API webhooks for urgent shift alerts.
@@ -312,21 +323,40 @@ where $T_{\text{base}} = 2.0\text{ seconds}$, $T_{\text{max}} = 300\text{ second
 ### 4.3 Template Compilation & Salary Slip Privacy Shielding
 
 All notification messages are compiled via structured template modules (`src/notifications/notification.templates.ts`):
+
 - **Salary Privacy Shielding:** Pay slips and compensation notifications strictly redact banking account numbers (masking all except the last 4 digits: `••••••••1234`) and exclude gross earnings from subject headers or preview text to prevent visual eavesdropping on mobile lock screens.
 - **Dynamic Variable Interpolation:** Handlers replace placeholders (e.g., `{{employee_name}}`, `{{month}}`, `{{net_salary}}`) with sanitized, HTML-escaped values to eliminate Cross-Site Scripting (XSS).
 
 ### 4.4 Delivery Logging, Read Receipts & Audit Tracing
 
 Every notification event is tracked within the `notification_delivery_logs` table:
+
 - **Unique Trace Identifier:** UUIDv4 generated at inception.
 - **Status Lifecycle:** `QUEUED` $\rightarrow$ `PROCESSING` $\rightarrow$ `SENT` $\rightarrow$ `DELIVERED` $\rightarrow$ `READ` (or `FAILED`).
 - **Read Receipt Tracking:** In-app clicks register an instant timestamped read receipt (`read_at`), enabling HR officers to audit whether mandatory company circulars have been acknowledged.
+
+### 4.5 Two-Way Recipient Reply Architecture & Conversation Threads
+
+To transform notifications from unidirectional alerts into a collaborative communication channel, the system implements a **Two-Way Notification Reply Architecture** (`src/notifications/notification.service.ts` and `notification_replies` table):
+
+1. **Two-Way Communication Lifecycle:**
+   - Recipients (employees or users) can directly compose and submit replies to received notifications.
+   - Administrators and HR Officers can participate in and oversee the conversation thread, answering inquiries regarding attendance queries, payroll notices, or policy clarifications.
+2. **Relational Data Foundation (`notification_replies`):**
+   - Each reply record stores `id`, `notificationId` (foreign key with `ON DELETE CASCADE`), `userId`, `employeeId`, `senderName`, `senderRole`, `message` (sanitized, max 2000 characters), and timestamps.
+   - Database B-Tree indexes on `notification_id`, `user_id`, and `created_at` ensure sub-millisecond thread retrieval.
+3. **Defense-in-Depth IDOR Protection (`NotificationPermissions.canReplyToNotification`):**
+   - Access is strictly governed by Insecure Direct Object Reference (IDOR) guards: only the designated recipient matching `notification.userId` or `notification.employeeId` (or privileged roles `Administrator` and `HR Officer`) is authorized to view or append replies. Foreign employees attempting to access private notification threads receive HTTP 403 Forbidden.
+4. **Interactive UI Thread & Quick Composer (`NotificationDetailModal`):**
+   - Full conversation history rendered with sender role badges, avatars, and timestamps.
+   - Quick Reply composer supporting `Ctrl + Enter` fast dispatch, live character counting, and smooth scrolling to new replies.
 
 ---
 
 ## 5. MULTI-LAYER DATA VALIDATION & POSTGRESQL CHECK CONSTRAINTS
 
 Data integrity is the foundational prerequisite of reliable payroll accounting. The system implements a defensive dual-tier validation strategy:
+
 1. **Application Service Tier (`src/server/validation.ts`):** Validates all client inputs prior to database queries, providing instant, human-friendly HTTP 400 Bad Request responses.
 2. **Relational Database Tier (`scripts/apply_database_constraints.ts`):** 38 native PostgreSQL `CHECK` constraints enforce physical invariants at the storage engine level, ensuring data integrity even in the event of direct database operations or service bugs.
 
@@ -415,6 +445,7 @@ export function validateEmployeePayload(body: any): ValidationResult {
 ```
 
 When an invalid request is detected, the server returns an HTTP 400 response with structured error details:
+
 ```json
 {
   "success": false,
@@ -515,6 +546,7 @@ Traditional corporate data tables with numerous columns cause horizontal overflo
 ### 6.4 Remote Network Deployment & Android PWA Installation
 
 For on-premise or cloud hosting, the system binds to all local network interfaces (`0.0.0.0:3001`), allowing immediate access across the corporate Wi-Fi network:
+
 1. **Network URL Access:** Mobile devices navigate to `http://<HOST_IP>:3001`.
 2. **Android Web App Shortcut:** Adding the site to the mobile home screen enables full-screen PWA execution without browser URL chrome.
 3. **Integrated Hardware Camera Scanning:** The `html5-qrcode` component connects directly to the smartphone's camera, allowing employees to scan physical badges or on-screen QR codes in real time.
@@ -579,7 +611,7 @@ EXECUTION TIME    : 4.82 seconds
 Benchmarking was conducted using automated synthetic workloads simulating 50 concurrent administrative and mobile users:
 
 | Benchmark Operational Metric | Target Benchmark | Measured Result | Evaluation Status |
-|---|:---:|:---:|:---:|
+| --- | :---: | :---: | :---: |
 | User Login & Token Generation | $< 250\text{ ms}$ | **$68\text{ ms}$** | Optimal |
 | QR Attendance Punch Ingestion | $< 150\text{ ms}$ | **$42\text{ ms}$** | Optimal |
 | 500-Employee Batch Payroll Calculation | $< 2.0\text{ s}$ | **$0.48\text{ s}$** | Exceptional |
@@ -591,6 +623,7 @@ Benchmarking was conducted using automated synthetic workloads simulating 50 con
 ### 8.3 Security & Penetration Testing Results
 
 The system was evaluated against the **OWASP Top 10 Enterprise Vulnerabilities**:
+
 - **A01: Broken Access Control:** Enforces strict RBAC middleware on all routes. IDOR attempts targeting employee payslips return HTTP 403 Forbidden.
 - **A02: Cryptographic Failures:** Passwords hashed with Bcrypt (cost factor 10); JWTs signed with 256-bit secret keys; sensitive salary values redacted from notification subject lines.
 - **A03: Injection (SQLi & Command Injection):** Drizzle ORM uses parameterized SQL queries throughout. Fuzz testing with SQL injection payloads (`' OR 1=1 --`, `UNION SELECT`) returned zero vulnerabilities.
@@ -604,26 +637,31 @@ The system was evaluated against the **OWASP Top 10 Enterprise Vulnerabilities**
 This section is designed to assist Osman during dissertation defense presentations and viva voce examinations:
 
 #### Question 1: What architectural considerations led to integrating an AI Assistant inside an Enterprise HRMS, and how did you prevent LLM hallucinations from corrupting financial data?
+>
 > **Model Defense Response:**  
 > "The integration of the Apex AI Assistant was motivated by the need to eliminate cognitive overhead for HR and Payroll officers, allowing rapid natural language querying of attendance anomalies, statutory tax computations, and workforce metrics.  
 > To completely prevent hallucinations from corrupting financial records, we implemented a strict separation between natural language reasoning and data execution. The LLM is **never permitted to generate or execute raw SQL**. Instead, it interacts exclusively with the database through **12 strongly typed, sandboxed tool functions** (`src/ai/ai.tools.ts`). Financial figures (such as NASSIT pension deductions and PAYE tax brackets) are computed using deterministic mathematical algorithms in the backend payroll engine, not estimated by the LLM. Furthermore, sensitive mutations require explicit user confirmation through interactive UI cards, guaranteeing human-in-the-loop oversight."
 
 #### Question 2: How does your system comply with the statutory labor and taxation regulations of Sierra Leone?
+>
 > **Model Defense Response:**  
 > "Compliance with Sierra Leone labor laws is embedded across both our mathematical payroll engine and the AI knowledge base. Under the NASSIT Act, our system automatically calculates and enforces the **5% employee pension deduction** and the **10% employer contribution**, totaling 15% statutory remittance.  
 > For progressive income tax, we implemented the official **PAYE tax brackets in New Leones (NLe)**, providing a zero-tax threshold on the first NLe 600, followed by progressive marginal brackets of 15%, 20%, 25%, and 30% for earnings exceeding NLe 2,400. In addition, overtime hours are calculated at a standard $1.5\times$ rate for regular weekdays and $2.0\times$ for Sundays and public holidays, adhering to national statutory requirements."
 
 #### Question 3: Why did you implement database CHECK constraints in addition to frontend and API-level validation? Isn't application-level validation sufficient?
+>
 > **Model Defense Response:**  
 > "Relying solely on application-level validation violates the fundamental software engineering principle of **Defense-in-Depth**. While our application layer (`src/server/validation.ts`) intercepts invalid input and provides user-friendly HTTP 400 responses, application code can have bypass vulnerabilities, bugs, or unhandled paths. Furthermore, direct database maintenance, migration scripts, or third-party integrations could bypass the API entirely.  
 > By applying **38 native PostgreSQL CHECK constraints** directly on table definitions, the database engine guarantees that values such as negative salaries, invalid email strings, end dates preceding start dates, and unapproved overtime numbers are physically impossible to insert into disk storage. This architectural decision guarantees 100% data integrity at all times."
 
 #### Question 4: How does your notification architecture handle peak loads, such as dispatching company-wide payroll notices simultaneously?
+>
 > **Model Defense Response:**  
 > "Dispatching hundreds of notifications synchronously across external APIs like SMTP or WhatsApp would lead to network timeouts, thread starvation, and rate-limiting blocks. To solve this, we implemented an **asynchronous priority queue with exponential backoff** (`notification.queue.ts`).  
 > High-priority notifications (such as system security alerts) take precedence over normal batch payroll alerts. When payroll is approved, the dispatch engine enqueues tasks and processes them sequentially with worker pools. If an external email or WhatsApp provider encounters a transient failure, our system retries with exponential backoff and jitter over five attempts before routing to a dead-letter log. Furthermore, to safeguard privacy, all compensation notifications redact sensitive banking numbers and exclude gross pay amounts from subject headers."
 
 #### Question 5: How does the system prevent attendance fraud, specifically buddy punching and proxy scanning?
+>
 > **Model Defense Response:**  
 > "We implemented a dual-layer anti-fraud mechanism combining **cryptographic dynamic QR codes** and **Haversine geofencing**.  
 > In dynamic mode, employee QR badges are generated with time-bound HMAC-SHA256 signatures that refresh periodically, rendering static photos or screenshots invalid. Additionally, when employees check in via mobile devices, the system captures their GPS coordinates and computes the spherical distance to the workplace using the Haversine formula. Scans recorded outside the 100-meter campus boundary are automatically flagged or rejected. Finally, the attendance engine enforces an idempotency constraint, preventing duplicate check-ins within the same shift."
@@ -635,6 +673,7 @@ This section is designed to assist Osman during dissertation defense presentatio
 The integrated subsystems documented in this report elevate the **Apex Smart Employee Attendance & Payroll Management System** from a standard recording tool to an intelligent, automated, and secure enterprise HR platform. By combining multi-provider LLM orchestration, Sierra Leone statutory compliance, multi-channel queued notifications, 38 PostgreSQL database constraints, mobile responsiveness, and dynamic QR anti-proxy verification, the system achieves enterprise-grade reliability and security.
 
 Future research and technical enhancements planned for subsequent releases include:
+
 1. **Edge-Based Facial Biometrics:** Integrating on-device WebAssembly face recognition to complement QR badges.
 2. **Predictive Attrition & Absence Modeling:** Utilizing machine learning classifiers to forecast employee turnover trends and absenteeism patterns.
 3. **Automated Banking API Integration:** Direct integration with Sierra Leone commercial banking switches for automated end-to-end direct deposit disbursements.
