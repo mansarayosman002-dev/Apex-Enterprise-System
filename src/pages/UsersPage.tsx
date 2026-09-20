@@ -59,9 +59,9 @@ export const UsersPage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 dark:text-white">User Access & Role Management</h1>
+          <h1 className="text-xl font-bold text-slate-900 dark:text-white">User Management</h1>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Configure system authentication accounts, assign RBAC permissions, and link with employee profiles
+            System accounts, RBAC roles, and linked profiles.
           </p>
         </div>
 
@@ -73,7 +73,7 @@ export const UsersPage: React.FC = () => {
           className="flex items-center space-x-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-indigo-700 transition"
         >
           <UserPlus className="h-4 w-4" />
-          <span>Create User Account</span>
+          <span>New User</span>
         </button>
       </div>
 

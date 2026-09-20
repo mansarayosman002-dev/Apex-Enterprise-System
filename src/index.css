@@ -9,7 +9,19 @@
   --font-heading: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
-html, body {
+*,
+::before,
+::after {
+  font-family: inherit;
+}
+
+html,
+body,
+button,
+input,
+optgroup,
+select,
+textarea {
   font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   transition: background-color 0.2s ease, color 0.2s ease;
 }
@@ -46,6 +58,51 @@ html.dark ::-webkit-scrollbar-track {
   background: #090d16;
 }
 
+/* Recharts Futuristic Data Visualization Styling - Plus Jakarta Sans */
+.recharts-wrapper,
+.recharts-surface,
+.recharts-cartesian-axis-tick-value,
+.recharts-text,
+.recharts-legend-item-text,
+.recharts-default-tooltip,
+.recharts-tooltip-label,
+.recharts-tooltip-item,
+.recharts-tooltip-item-name,
+.recharts-tooltip-item-separator,
+.recharts-tooltip-item-value {
+  font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+}
+
+.recharts-default-tooltip {
+  background-color: rgba(15, 23, 42, 0.96) !important;
+  border: 1px solid rgba(6, 182, 212, 0.45) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 0 25px rgba(6, 182, 212, 0.25), 0 10px 30px rgba(0, 0, 0, 0.5) !important;
+  backdrop-filter: blur(12px) !important;
+  padding: 10px 14px !important;
+}
+
+.recharts-tooltip-label {
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  font-size: 11.5px !important;
+  letter-spacing: 0.03em !important;
+  text-transform: uppercase !important;
+  margin-bottom: 6px !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+  padding-bottom: 4px !important;
+}
+
+.recharts-tooltip-item,
+.recharts-tooltip-item-name,
+.recharts-tooltip-item-separator,
+.recharts-tooltip-item-value {
+  color: #67e8f9 !important;
+  font-weight: 600 !important;
+  font-size: 11px !important;
+}
+
+
 html.dark ::-webkit-scrollbar-thumb {
   background: #1e293b;
   border-radius: 4px;
@@ -61,7 +118,9 @@ html.dark ::-webkit-scrollbar-thumb:hover {
     margin: 8mm 10mm 10mm 10mm;
   }
 
-  html, body {
+  html,
+  body {
+    font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
     background-color: #ffffff !important;
     color: #0f172a !important;
     width: 100% !important;
@@ -73,7 +132,13 @@ html.dark ::-webkit-scrollbar-thumb:hover {
   }
 
   /* Hide navigation, sidebar, and web controls during print */
-  header, aside, button, nav, .print\:hidden, [role="navigation"], .no-print {
+  header,
+  aside,
+  button,
+  nav,
+  .print\:hidden,
+  [role="navigation"],
+  .no-print {
     display: none !important;
   }
 
@@ -94,7 +159,8 @@ html.dark ::-webkit-scrollbar-thumb:hover {
     table-layout: auto !important;
   }
 
-  th, td {
+  th,
+  td {
     padding: 4px 6px !important;
     word-break: break-word !important;
   }
@@ -122,18 +188,24 @@ html.dark ::-webkit-scrollbar-thumb:hover {
    PREMIUM UI ANIMATION UTILITIES
 ========================================================= */
 @keyframes float-slow {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: translateY(0px) rotate(0deg);
   }
+
   50% {
     transform: translateY(-12px) rotate(1.5deg);
   }
 }
 
 @keyframes float-reverse {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: translateY(0px) rotate(0deg);
   }
+
   50% {
     transform: translateY(12px) rotate(-1.5deg);
   }
@@ -144,9 +216,11 @@ html.dark ::-webkit-scrollbar-thumb:hover {
     top: 0%;
     opacity: 0.8;
   }
+
   50% {
     opacity: 1;
   }
+
   100% {
     top: 96%;
     opacity: 0.8;
@@ -157,16 +231,20 @@ html.dark ::-webkit-scrollbar-thumb:hover {
   0% {
     background-position: -200% 0;
   }
+
   100% {
     background-position: 200% 0;
   }
 }
 
 @keyframes pulse-glow {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 0.4;
     transform: scale(1);
   }
+
   50% {
     opacity: 0.8;
     transform: scale(1.05);
@@ -174,9 +252,21 @@ html.dark ::-webkit-scrollbar-thumb:hover {
 }
 
 @keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  20%, 60% { transform: translateX(-6px); }
-  40%, 80% { transform: translateX(6px); }
+
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  20%,
+  60% {
+    transform: translateX(-6px);
+  }
+
+  40%,
+  80% {
+    transform: translateX(6px);
+  }
 }
 
 .animate-float-slow {
@@ -192,7 +282,7 @@ html.dark ::-webkit-scrollbar-thumb:hover {
 }
 
 .animate-shimmer {
-  background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.18) 50%, rgba(255,255,255,0) 100%);
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.18) 50%, rgba(255, 255, 255, 0) 100%);
   background-size: 200% 100%;
   animation: shimmer 3s infinite;
 }
@@ -206,15 +296,382 @@ html.dark ::-webkit-scrollbar-thumb:hover {
 }
 
 /* =========================================================
+   PREMIUM AI ORB & HERO TEXT ANIMATIONS
+========================================================= */
+@keyframes orb-levitate {
+
+  0%,
+  100% {
+    transform: translateY(0px) scale(1);
+  }
+
+  50% {
+    transform: translateY(-12px) scale(1.025);
+  }
+}
+
+@keyframes orb-shadow {
+
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.35;
+  }
+
+  50% {
+    transform: scale(0.72);
+    opacity: 0.16;
+  }
+}
+
+@keyframes orb-ring-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes orb-ring-spin-reverse {
+  0% {
+    transform: rotate(360deg);
+  }
+
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes text-gradient-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes orb-glow-pulse {
+
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.96);
+  }
+
+  50% {
+    opacity: 0.85;
+    transform: scale(1.12);
+  }
+}
+
+.animate-orb-levitate {
+  animation: orb-levitate 4.5s ease-in-out infinite;
+}
+
+.animate-orb-shadow {
+  animation: orb-shadow 4.5s ease-in-out infinite;
+}
+
+.animate-orb-ring-spin {
+  animation: orb-ring-spin 18s linear infinite;
+}
+
+.animate-orb-ring-spin-reverse {
+  animation: orb-ring-spin-reverse 14s linear infinite;
+}
+
+.animate-text-gradient {
+  background-size: 250% 250%;
+  animation: text-gradient-flow 5s ease-in-out infinite;
+}
+
+.animate-orb-glow {
+  animation: orb-glow-pulse 3.8s ease-in-out infinite;
+}
+
+/* =========================================================
+   PREMIUM ICON ANIMATIONS & TACTILE MICRO-INTERACTIONS
+========================================================= */
+@keyframes icon-wiggle {
+
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+
+  20% {
+    transform: rotate(-14deg);
+  }
+
+  40% {
+    transform: rotate(12deg);
+  }
+
+  60% {
+    transform: rotate(-8deg);
+  }
+
+  80% {
+    transform: rotate(6deg);
+  }
+}
+
+@keyframes icon-float-gentle {
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes icon-pulse-ring {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.8;
+  }
+
+  50% {
+    transform: scale(1.15);
+    opacity: 0.4;
+  }
+
+  100% {
+    transform: scale(0.95);
+    opacity: 0.8;
+  }
+}
+
+/* =========================================================
+   DUALTONE (DUOTONE) ICON SYSTEM
+   Tone 1: Primary crisp stroke (currentColor, full opacity)
+   Tone 2: Secondary soft translucent fill (currentColor, 18-24% opacity)
+========================================================= */
+
+/* Base smooth transition for all Lucide SVG icons */
+svg.lucide,
+.lucide {
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.2s ease, opacity 0.2s ease, fill-opacity 0.25s ease;
+  will-change: transform;
+}
+
+/* Tone 2 (Soft Translucent Fill) applied to enclosed geometric shapes */
+svg.lucide circle,
+svg.lucide rect,
+svg.lucide polygon,
+svg.lucide ellipse {
+  fill: currentColor !important;
+  fill-opacity: 0.18;
+  transition: fill-opacity 0.25s ease, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Tone 2 applied to closed SVG paths terminating in z or Z (shields, badges, funnels, documents, stars) */
+svg.lucide path[d*="z"],
+svg.lucide path[d*="Z"] {
+  fill: currentColor !important;
+  fill-opacity: 0.18;
+  transition: fill-opacity 0.25s ease, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Tone 2 applied to organic silhouettes (User avatars, Bell dome, Lock body, Briefcase) */
+svg.lucide.lucide-user path:first-of-type,
+svg.lucide.lucide-users path:first-of-type,
+svg.lucide.lucide-user-check path:first-of-type,
+svg.lucide.lucide-user-plus path:first-of-type,
+svg.lucide.lucide-user-x path:first-of-type,
+svg.lucide.lucide-bell path:last-of-type,
+svg.lucide.lucide-lock rect,
+svg.lucide.lucide-key rect,
+svg.lucide.lucide-briefcase rect {
+  fill: currentColor !important;
+  fill-opacity: 0.18;
+}
+
+/* Dualtone dynamic glow on hover / interaction */
+button:hover svg.lucide circle,
+button:hover svg.lucide rect,
+button:hover svg.lucide polygon,
+button:hover svg.lucide ellipse,
+button:hover svg.lucide path[d*="z"],
+button:hover svg.lucide path[d*="Z"],
+a:hover svg.lucide circle,
+a:hover svg.lucide rect,
+a:hover svg.lucide polygon,
+a:hover svg.lucide ellipse,
+a:hover svg.lucide path[d*="z"],
+a:hover svg.lucide path[d*="Z"],
+.group:hover svg.lucide circle,
+.group:hover svg.lucide rect,
+.group:hover svg.lucide polygon,
+.group:hover svg.lucide ellipse,
+.group:hover svg.lucide path[d*="z"],
+.group:hover svg.lucide path[d*="Z"],
+[role="button"]:hover svg.lucide circle,
+[role="button"]:hover svg.lucide rect,
+[role="button"]:hover svg.lucide polygon,
+[role="button"]:hover svg.lucide path[d*="z"],
+[role="button"]:hover svg.lucide path[d*="Z"] {
+  fill-opacity: 0.30;
+}
+
+/* Dark mode dualtone depth */
+.dark svg.lucide circle,
+.dark svg.lucide rect,
+.dark svg.lucide polygon,
+.dark svg.lucide ellipse,
+.dark svg.lucide path[d*="z"],
+.dark svg.lucide path[d*="Z"] {
+  fill-opacity: 0.22;
+}
+
+.dark button:hover svg.lucide circle,
+.dark button:hover svg.lucide rect,
+.dark button:hover svg.lucide polygon,
+.dark button:hover svg.lucide ellipse,
+.dark button:hover svg.lucide path[d*="z"],
+.dark button:hover svg.lucide path[d*="Z"],
+.dark a:hover svg.lucide circle,
+.dark a:hover svg.lucide rect,
+.dark a:hover svg.lucide polygon,
+.dark a:hover svg.lucide ellipse,
+.dark a:hover svg.lucide path[d*="z"],
+.dark a:hover svg.lucide path[d*="Z"],
+.dark .group:hover svg.lucide circle,
+.dark .group:hover svg.lucide rect,
+.dark .group:hover svg.lucide polygon,
+.dark .group:hover svg.lucide ellipse,
+.dark .group:hover svg.lucide path[d*="z"],
+.dark .group:hover svg.lucide path[d*="Z"] {
+  fill-opacity: 0.36;
+}
+
+/* Strict stroke-only protection: directional chevrons, arrows, cross marks, and utility lines */
+svg.lucide line,
+svg.lucide polyline,
+svg.lucide.lucide-chevron-right,
+svg.lucide.lucide-chevron-left,
+svg.lucide.lucide-chevron-up,
+svg.lucide.lucide-chevron-down,
+svg.lucide.lucide-chevrons-right,
+svg.lucide.lucide-chevrons-left,
+svg.lucide.lucide-arrow-right,
+svg.lucide.lucide-arrow-left,
+svg.lucide.lucide-arrow-up,
+svg.lucide.lucide-arrow-down,
+svg.lucide.lucide-arrow-up-down,
+svg.lucide.lucide-move,
+svg.lucide.lucide-menu,
+svg.lucide.lucide-x,
+svg.lucide.lucide-check,
+svg.lucide.lucide-plus,
+svg.lucide.lucide-minus,
+svg.lucide.lucide-slash,
+svg.lucide.lucide-dollar-sign path {
+  fill: none !important;
+}
+
+/* Hover micro-interactions on interactive containers */
+button:hover svg.lucide,
+a:hover svg.lucide,
+.group:hover svg.lucide,
+[role="button"]:hover svg.lucide {
+  transform: scale(1.12);
+}
+
+/* Active / pressed state tactile dip */
+button:active svg.lucide,
+a:active svg.lucide,
+[role="button"]:active svg.lucide {
+  transform: scale(0.95);
+}
+
+/* Context-specific icon animations */
+button:hover .lucide-arrow-right,
+a:hover .lucide-arrow-right,
+.group:hover .lucide-arrow-right {
+  transform: translateX(3px) scale(1.1);
+}
+
+button:hover .lucide-arrow-left,
+a:hover .lucide-arrow-left,
+.group:hover .lucide-arrow-left {
+  transform: translateX(-3px) scale(1.1);
+}
+
+button:hover .lucide-refresh-cw,
+button:hover .lucide-rotate-cw,
+.group:hover .lucide-refresh-cw {
+  transform: rotate(180deg) scale(1.12);
+}
+
+button:hover .lucide-bell,
+.group:hover .lucide-bell {
+  animation: icon-wiggle 0.55s ease-in-out;
+}
+
+button:hover .lucide-plus,
+.group:hover .lucide-plus {
+  transform: rotate(90deg) scale(1.15);
+}
+
+button:hover .lucide-trash-2,
+.group:hover .lucide-trash-2 {
+  transform: rotate(-10deg) scale(1.15);
+}
+
+button:hover .lucide-download,
+.group:hover .lucide-download {
+  transform: translateY(2.5px) scale(1.1);
+}
+
+button:hover .lucide-shield-check,
+.group:hover .lucide-shield-check,
+button:hover .lucide-check-circle-2,
+.group:hover .lucide-check-circle-2 {
+  transform: scale(1.18);
+}
+
+button:hover .lucide-eye,
+button:hover .lucide-eye-off {
+  transform: scale(1.2);
+}
+
+.group:focus-within .lucide-search {
+  transform: scale(1.15) rotate(-6deg);
+}
+
+.icon-wiggle {
+  animation: icon-wiggle 0.55s ease-in-out;
+}
+
+.icon-float {
+  animation: icon-float-gentle 3s ease-in-out infinite;
+}
+
+/* =========================================================
    MOBILE RESPONSIVE & TOUCH UTILITIES
 ========================================================= */
-@supports (padding: max(0px)) {
-  .safe-area-bottom {
-    padding-bottom: max(1rem, env(safe-area-inset-bottom));
-  }
-  .safe-area-top {
-    padding-top: max(0.5rem, env(safe-area-inset-top));
-  }
+.safe-area-bottom,
+.safe-area-inset-bottom {
+  padding-bottom: 0.75rem;
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+
+.safe-area-top,
+.safe-area-inset-top {
+  padding-top: 0.5rem;
+  padding-top: max(0.5rem, env(safe-area-inset-top));
 }
 
 /* Smooth Momentum Touch Scrolling */
@@ -228,6 +685,7 @@ html.dark ::-webkit-scrollbar-thumb:hover {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }
@@ -244,4 +702,142 @@ html.dark ::-webkit-scrollbar-thumb:hover {
   width: 100%;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+}
+
+/* Mobile Badge Scanner Viewport Tweaks */
+#qr-reader-container video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  border-radius: 0.75rem !important;
+}
+
+@media (max-width: 640px) {
+  #qr-reader-container {
+    width: 100% !important;
+    min-height: 240px !important;
+  }
+}
+
+/* ==========================================================================
+   FUTURISTIC CYBERNETIC DESIGN SYSTEM TOKENS & UTILITIES
+   ========================================================================== */
+
+/* 1. Cyber Frosted Glass Panels */
+.cyber-panel {
+  position: relative;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(6, 182, 212, 0.22);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37), 0 0 15px rgba(6, 182, 212, 0.06);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.cyber-panel:hover {
+  border-color: rgba(6, 182, 212, 0.45);
+  box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.5), 0 0 25px rgba(6, 182, 212, 0.14);
+}
+
+/* 2. Neon Glow Luminescence Effects */
+.cyber-glow-cyan {
+  box-shadow: 0 0 20px rgba(6, 182, 212, 0.35), inset 0 0 10px rgba(6, 182, 212, 0.15);
+}
+
+.cyber-glow-violet {
+  box-shadow: 0 0 20px rgba(139, 92, 246, 0.35), inset 0 0 10px rgba(139, 92, 246, 0.15);
+}
+
+.cyber-glow-emerald {
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.35), inset 0 0 10px rgba(16, 185, 129, 0.15);
+}
+
+.cyber-glow-amber {
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.35), inset 0 0 10px rgba(245, 158, 11, 0.15);
+}
+
+/* 3. Sci-Fi HUD Corner Bracket Accents */
+.cyber-corners {
+  position: relative;
+}
+
+.cyber-corners::before,
+.cyber-corners::after {
+  content: '';
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  pointer-events: none;
+  transition: all 0.3s ease;
+}
+
+.cyber-corners::before {
+  top: -1px;
+  left: -1px;
+  border-top: 2px solid #06b6d4;
+  border-left: 2px solid #06b6d4;
+}
+
+.cyber-corners::after {
+  bottom: -1px;
+  right: -1px;
+  border-bottom: 2px solid #06b6d4;
+  border-right: 2px solid #06b6d4;
+}
+
+.cyber-corners:hover::before,
+.cyber-corners:hover::after {
+  width: 14px;
+  height: 14px;
+  border-color: #38bdf8;
+  filter: drop-shadow(0 0 4px #06b6d4);
+}
+
+/* 4. Monospace Telemetry Typography */
+.hud-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* 5. Animated Futuristic Scanning Laser Line */
+@keyframes cyberScan {
+  0% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+
+  50% {
+    opacity: 0.8;
+  }
+
+  100% {
+    transform: translateY(1000%);
+    opacity: 0;
+  }
+}
+
+.animate-cyber-scan {
+  animation: cyberScan 6s linear infinite;
+}
+
+/* 6. Glowing Futuristic Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(3, 7, 18, 0.6);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(6, 182, 212, 0.3);
+  border-radius: 9999px;
+  transition: background 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(6, 182, 212, 0.7);
+  box-shadow: 0 0 8px #06b6d4;
 }

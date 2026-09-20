@@ -3,6 +3,7 @@ import {
   notifications,
   notificationDeliveries,
   notificationPreferences,
+  notificationReplies,
   employees,
   users,
   departments,
@@ -594,5 +595,197 @@ export class NotificationService {
       .returning();
 
     return updated;
+  }
+
+  /**
+   * Adds a reply to a notification from recipient or authorized manager
+   */
+  static async addReply(
+    notificationId: number,
+    rawMessage: string,
+    user: UserContext
+  ): Promise<typeof notificationReplies.$inferSelect> {
+    if (!rawMessage || typeof rawMessage !== 'string') {
+      throw new Error('Reply message cannot be empty.');
+    }
+
+    const message = rawMessage.trim();
+    if (!message) {
+      throw new Error('Reply message cannot be empty.');
+    }
+
+    if (message.length > 2000) {
+      throw new Error('Reply message exceeds maximum length of 2000 characters.');
+    }
+
+    // 1. Fetch notification
+    const [notif] = await db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.id, notificationId))
+      .limit(1);
+
+    if (!notif) {
+      throw new Error('Notification not found.');
+    }
+
+    // 2. Authorization Check (IDOR prevention)
+    if (!NotificationPermissions.canReplyToNotification(user, notif)) {
+      throw new Error('Unauthorized to reply to this notification.');
+    }
+
+    // 3. Determine sender display name
+    let senderName = user.username;
+    if (user.employeeId) {
+      const [emp] = await db
+        .select({
+          firstName: employees.firstName,
+          lastName: employees.lastName,
+        })
+        .from(employees)
+        .where(eq(employees.id, user.employeeId))
+        .limit(1);
+
+      if (emp && emp.firstName) {
+        senderName = `${emp.firstName} ${emp.lastName}`.trim();
+      }
+    }
+
+    // 4. Insert reply record
+    const [reply] = await db
+      .insert(notificationReplies)
+      .values({
+        notificationId,
+        userId: user.id,
+        employeeId: user.employeeId ?? null,
+        senderName,
+        senderRole: user.roleName || 'Employee',
+        message,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
+
+    // 5. Audit log
+    await recordAudit(
+      user.id,
+      user.username,
+      'NOTIFICATION_REPLY',
+      'notification_replies',
+      String(reply.id),
+      `User ${user.username} (${user.roleName}) replied to notification #${notificationId}`
+    );
+
+    // 6. Forward notification message to counter-parties (HR / Admin or recipient)
+    try {
+      const isManagerOrAdmin = ['Administrator', 'HR Officer'].includes(user.roleName);
+
+      if (!isManagerOrAdmin) {
+        // Recipient (employee) replied -> Forward message to Administrators and HR Officers
+        let targetUserIds: number[] = [];
+        if (notif.metadata) {
+          try {
+            const meta = JSON.parse(notif.metadata);
+            if (meta.senderUserId && meta.senderUserId !== user.id) {
+              targetUserIds.push(meta.senderUserId);
+            }
+          } catch { }
+        }
+
+        if (targetUserIds.length === 0) {
+          const hrAdmins = await db
+            .select({ id: users.id })
+            .from(users)
+            .innerJoin(roles, eq(users.roleId, roles.id))
+            .where(or(eq(roles.roleName, 'Administrator'), eq(roles.roleName, 'HR Officer')));
+
+          targetUserIds = hrAdmins.map((u) => u.id).filter((id) => id !== user.id);
+        }
+
+        for (const targetId of targetUserIds) {
+          await NotificationService.dispatch(
+            {
+              userId: targetId,
+              title: `Reply Received: ${notif.title}`,
+              message: `${senderName} (${user.roleName || 'Employee'}) replied:\n\n"${message}"`,
+              category: (notif.category as any) || 'HR',
+              type: (notif.type as any) || 'HR',
+              priority: (notif.priority as any) || 'medium',
+              actionUrl: `/notifications`,
+              metadata: {
+                parentNotificationId: notificationId,
+                replyId: reply.id,
+                repliedBy: user.username,
+                repliedByUserId: user.id,
+              },
+            },
+            user
+          );
+        }
+      } else {
+        // Administrator or HR Officer replied -> Forward message to notification recipient
+        const targetUserId = notif.userId;
+        const targetEmpId = notif.employeeId;
+
+        if (targetUserId && targetUserId !== user.id) {
+          await NotificationService.dispatch(
+            {
+              userId: targetUserId,
+              employeeId: targetEmpId || undefined,
+              title: `Response: ${notif.title}`,
+              message: `${senderName} (${user.roleName}) replied to your notification:\n\n"${message}"`,
+              category: (notif.category as any) || 'HR',
+              type: (notif.type as any) || 'HR',
+              priority: (notif.priority as any) || 'medium',
+              actionUrl: `/notifications`,
+              metadata: {
+                parentNotificationId: notificationId,
+                replyId: reply.id,
+                repliedBy: user.username,
+                repliedByUserId: user.id,
+              },
+            },
+            user
+          );
+        }
+      }
+    } catch (forwardErr) {
+      console.warn('Non-fatal error forwarding notification reply alert:', forwardErr);
+    }
+
+    return reply;
+  }
+
+  /**
+   * Gets all replies for a notification in chronological order
+   */
+  static async getReplies(
+    notificationId: number,
+    user: UserContext
+  ): Promise<(typeof notificationReplies.$inferSelect)[]> {
+    // 1. Fetch notification
+    const [notif] = await db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.id, notificationId))
+      .limit(1);
+
+    if (!notif) {
+      throw new Error('Notification not found.');
+    }
+
+    // 2. Authorization Check
+    if (!NotificationPermissions.canViewNotificationReplies(user, notif)) {
+      throw new Error('Unauthorized to view replies for this notification.');
+    }
+
+    // 3. Fetch replies ordered by createdAt ASC
+    const replies = await db
+      .select()
+      .from(notificationReplies)
+      .where(eq(notificationReplies.notificationId, notificationId))
+      .orderBy(notificationReplies.createdAt);
+
+    return replies;
   }
 }

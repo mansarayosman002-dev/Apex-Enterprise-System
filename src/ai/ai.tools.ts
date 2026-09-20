@@ -14,13 +14,18 @@ import {
   getOvertimeList,
   getDepartments,
   getSettingsMap,
-  getCompanyKnowledge,
   deleteEmployee,
   processAllPayrollForPeriod,
+  approveOvertimeRecord,
+  rejectOvertimeRecord,
 } from '../server/dbServices.ts';
 import { db } from '../db/index.ts';
-import { notifications, users, employees, attendance } from '../db/schema.ts';
-import { eq, and, sql } from 'drizzle-orm';
+import { notifications, users, employees, attendance, aiAnomalies } from '../db/schema.ts';
+import { eq, and, sql, desc } from 'drizzle-orm';
+import { APEX_BUSINESS_RULES } from './knowledge/businessRulesRegistry.ts';
+import { APEX_DATA_DICTIONARY } from './knowledge/dataDictionary.ts';
+import { APEX_SECURITY_POLICIES } from './knowledge/securityPolicies.ts';
+import { APEX_APPLICATION_CONTEXT } from './knowledge/applicationContext.ts';
 
 // ----------------------------------------------------
 // Tool Registry Definitions
@@ -41,7 +46,7 @@ export const AI_TOOLS: AIToolDefinition[] = [
     parameters: {
       date: {
         type: 'string',
-        description: 'Optional date in YYYY-MM-DD format. Defaults to today.',
+        description: 'Optional date filter in YYYY-MM-DD format. Defaults to current day.',
       },
     },
     requiredParams: [],
@@ -51,11 +56,11 @@ export const AI_TOOLS: AIToolDefinition[] = [
   },
   {
     name: 'get_late_employees',
-    description: 'Retrieves list of employees marked as "Late" on a specific date along with their check-in times.',
+    description: 'Lists all employees who checked in after the 08:30:00 AM grace period cutoff today.',
     parameters: {
       date: {
         type: 'string',
-        description: 'Optional date in YYYY-MM-DD format. Defaults to today.',
+        description: 'Optional date filter in YYYY-MM-DD format. Defaults to current date.',
       },
     },
     requiredParams: [],
@@ -65,11 +70,11 @@ export const AI_TOOLS: AIToolDefinition[] = [
   },
   {
     name: 'get_absent_employees',
-    description: 'Retrieves all active staff members who have not recorded an attendance punch for today.',
+    description: 'Lists all active workforce members who have not recorded an attendance punch for the specified date.',
     parameters: {
       date: {
         type: 'string',
-        description: 'Date in YYYY-MM-DD format. Defaults to today.',
+        description: 'Optional date filter in YYYY-MM-DD format. Defaults to current date.',
       },
     },
     requiredParams: [],
@@ -79,47 +84,43 @@ export const AI_TOOLS: AIToolDefinition[] = [
   },
   {
     name: 'get_employee_attendance',
-    description: 'Retrieves historical punch logs, working hours, and check-in/out timestamps for a specific employee. (Employees can only query their own attendance).',
+    description: 'Retrieves comprehensive punch records for a specific employee. (Employees may only access their own).',
     parameters: {
       employeeId: {
         type: 'number',
-        description: 'The internal ID of the employee.',
+        description: 'Database ID of the employee.',
       },
-      startDate: {
-        type: 'string',
-        description: 'Start of period in YYYY-MM-DD format.',
-      },
-      endDate: {
-        type: 'string',
-        description: 'End of period in YYYY-MM-DD format.',
+      limit: {
+        type: 'number',
+        description: 'Number of recent attendance records to return (default 10).',
       },
     },
-    requiredParams: [],
+    requiredParams: ['employeeId'],
     allowedRoles: ['Administrator', 'HR Officer', 'Employee', 'Management'],
     isWriteAction: false,
     riskLevel: 'LOW',
   },
   {
     name: 'get_payroll_summary',
-    description: 'Retrieves comprehensive organizational payroll summary for a period (gross salary, net salary, overtime, allowances, deductions).',
+    description: 'Aggregates enterprise-wide statutory payroll metrics (gross, total net, NASSIT 5%, PAYE tax, overtime) for a period.',
     parameters: {
       period: {
         type: 'string',
-        description: 'Payroll period in YYYY-MM format (e.g. 2026-05). Defaults to current period.',
+        description: 'Payroll period in YYYY-MM format (e.g. 2026-09). Defaults to current month.',
       },
     },
     requiredParams: [],
     allowedRoles: ['Administrator', 'Payroll Officer', 'Management'],
     isWriteAction: false,
-    riskLevel: 'MEDIUM',
+    riskLevel: 'LOW',
   },
   {
     name: 'get_my_payroll',
-    description: 'Allows an authenticated employee to securely view and understand their own salary, overtime compensation, allowances, deductions, and net pay breakdown.',
+    description: 'Retrieves the authenticated employee\'s personal payslip breakdown (basic, overtime, allowances, deductions, net take-home).',
     parameters: {
       period: {
         type: 'string',
-        description: 'Payroll period in YYYY-MM format. Defaults to latest period.',
+        description: 'Payroll period in YYYY-MM format.',
       },
     },
     requiredParams: [],
@@ -129,11 +130,12 @@ export const AI_TOOLS: AIToolDefinition[] = [
   },
   {
     name: 'get_overtime_summary',
-    description: 'Retrieves summary of approved and recorded overtime hours across workforce or departments.',
+    description: 'Retrieves pending and approved overtime claims, hours, and payout costs for the enterprise.',
     parameters: {
-      departmentId: {
-        type: 'number',
-        description: 'Optional department ID filter.',
+      status: {
+        type: 'string',
+        description: 'Filter by claim status: Pending, Approved, or Rejected.',
+        enum: ['Pending', 'Approved', 'Rejected'],
       },
     },
     requiredParams: [],
@@ -143,7 +145,7 @@ export const AI_TOOLS: AIToolDefinition[] = [
   },
   {
     name: 'get_department_summary',
-    description: 'Retrieves department listings, employee distributions, and operational headcounts.',
+    description: 'Lists all organizational departments with headcount distribution, code, and active staff counts.',
     parameters: {},
     requiredParams: [],
     allowedRoles: ['Administrator', 'HR Officer', 'Payroll Officer', 'Management'],
@@ -152,75 +154,83 @@ export const AI_TOOLS: AIToolDefinition[] = [
   },
   {
     name: 'get_attendance_anomalies',
-    description: 'Rule-based audit detection finding operational anomalies (excessive overtime > 4 hrs, open checkouts after shift, repeat tardiness, duplicate scans).',
+    description: 'Audits live attendance punches for policy anomalies (excessive overtime > 4h, missing checkout after 19:00, repeated tardiness).',
     parameters: {},
     requiredParams: [],
     allowedRoles: ['Administrator', 'HR Officer', 'Management'],
     isWriteAction: false,
-    riskLevel: 'MEDIUM',
+    riskLevel: 'LOW',
   },
   {
     name: 'send_notification',
-    description: 'Dispatches or schedules an in-app / email notification to an individual employee or group.',
+    description: 'Dispatches targeted or bulk enterprise notifications to employees across in-app, email, or multi-channel delivery.',
     parameters: {
       recipientType: {
         type: 'string',
-        description: 'Target group: "all", "absent_today", "late_today", or "individual".',
-        enum: ['all', 'absent_today', 'late_today', 'individual'],
-        required: true,
+        description: 'Recipient filter: individual, all, absent_today, late_today.',
+        enum: ['individual', 'all', 'absent_today', 'late_today'],
       },
       employeeId: {
         type: 'number',
-        description: 'Required if recipientType is "individual".',
+        description: 'Required if recipientType is individual.',
       },
       title: {
         type: 'string',
-        description: 'Subject/title of notification.',
-        required: true,
+        description: 'Headline title of the notification.',
       },
       message: {
         type: 'string',
-        description: 'The notification message body.',
-        required: true,
+        description: 'Notification body text.',
       },
       category: {
         type: 'string',
-        description: 'Category: Attendance, Payroll, HR, Reminder, Alert, Announcement.',
-        enum: ['Attendance', 'Payroll', 'HR', 'Reminder', 'Alert', 'Announcement'],
+        description: 'Category: Attendance, Payroll, HR, Announcement, Alert.',
       },
     },
     requiredParams: ['recipientType', 'title', 'message'],
     allowedRoles: ['Administrator', 'HR Officer'],
     isWriteAction: true,
-    riskLevel: 'HIGH',
+    riskLevel: 'MEDIUM',
   },
   {
-    name: 'deactivate_employee',
-    description: 'Deactivates an employee profile and revokes their QR attendance badge. (Requires explicit user confirmation).',
+    name: 'approve_overtime',
+    description: 'Approves an employee\'s pending overtime claim, authorizing statutory payout in next payroll run.',
     parameters: {
-      employeeId: {
+      overtimeId: {
         type: 'number',
-        description: 'The employee ID to deactivate.',
-        required: true,
+        description: 'ID of the overtime record to approve.',
+      },
+    },
+    requiredParams: ['overtimeId'],
+    allowedRoles: ['Administrator', 'HR Officer'],
+    isWriteAction: true,
+    riskLevel: 'MEDIUM',
+  },
+  {
+    name: 'reject_overtime',
+    description: 'Rejects an employee\'s overtime claim with optional review feedback.',
+    parameters: {
+      overtimeId: {
+        type: 'number',
+        description: 'ID of the overtime record to reject.',
       },
       reason: {
         type: 'string',
-        description: 'Reason for deactivation.',
+        description: 'Justification for rejecting the claim.',
       },
     },
-    requiredParams: ['employeeId'],
+    requiredParams: ['overtimeId'],
     allowedRoles: ['Administrator', 'HR Officer'],
     isWriteAction: true,
-    riskLevel: 'CRITICAL',
+    riskLevel: 'LOW',
   },
   {
     name: 'process_batch_payroll',
-    description: 'Processes and calculates payroll records for all active employees for a given month. (Requires confirmation).',
+    description: 'Calculates and persists statutory payroll for all active employees for a given period.',
     parameters: {
       period: {
         type: 'string',
-        description: 'Period in YYYY-MM format.',
-        required: true,
+        description: 'Payroll period in YYYY-MM format (e.g. 2026-09).',
       },
     },
     requiredParams: ['period'],
@@ -230,123 +240,169 @@ export const AI_TOOLS: AIToolDefinition[] = [
   },
   {
     name: 'get_company_info',
-    description: 'Retrieves official corporate background on Apex Enterprise SL Ltd, corporate services, system architecture, and QR attendance/payroll workflows.',
+    description: 'Retrieves Apex Enterprise corporate profile, official headquarters, mission, and system architecture summary.',
+    parameters: {},
+    requiredParams: [],
+    allowedRoles: ['Administrator', 'HR Officer', 'Payroll Officer', 'Employee', 'Management'],
+    isWriteAction: false,
+    riskLevel: 'LOW',
+  },
+  {
+    name: 'get_business_rules',
+    description: 'Explains specific enterprise business rules (shift hours, 30m grace period, NASSIT 5%, PAYE brackets, QR token HMAC).',
     parameters: {
-      topic: {
+      category: {
         type: 'string',
-        description: 'Optional topic filter ("overview", "services", "attendance", "payroll", "all"). Defaults to "all".',
+        description: 'Optional filter: ATTENDANCE, OVERTIME, PAYROLL, QR_CODE.',
+        enum: ['ATTENDANCE', 'OVERTIME', 'PAYROLL', 'QR_CODE'],
       },
     },
     requiredParams: [],
-    allowedRoles: ['Administrator', 'HR Officer', 'Payroll Officer', 'Management', 'Employee'],
+    allowedRoles: ['Administrator', 'HR Officer', 'Payroll Officer', 'Employee', 'Management'],
+    isWriteAction: false,
+    riskLevel: 'LOW',
+  },
+  {
+    name: 'get_data_dictionary',
+    description: 'Returns the exact PostgreSQL 18 schema definition, column types, and constraints for system tables.',
+    parameters: {
+      tableName: {
+        type: 'string',
+        description: 'Optional specific table name (e.g. employees, attendance, payroll).',
+      },
+    },
+    requiredParams: [],
+    allowedRoles: ['Administrator', 'HR Officer', 'Payroll Officer', 'Management'],
+    isWriteAction: false,
+    riskLevel: 'LOW',
+  },
+  {
+    name: 'get_security_policies',
+    description: 'Returns the RBAC permissions matrix, allowed operational domains, and IDOR protection rules for user roles.',
+    parameters: {
+      role: {
+        type: 'string',
+        description: 'Optional role filter: Administrator, HR Officer, Payroll Officer, Management, Employee.',
+      },
+    },
+    requiredParams: [],
+    allowedRoles: ['Administrator', 'HR Officer', 'Payroll Officer', 'Employee', 'Management'],
+    isWriteAction: false,
+    riskLevel: 'LOW',
+  },
+  {
+    name: 'get_system_knowledge',
+    description: 'Retrieves authoritative architecture, business rules, workflows, security, payroll/attendance calculations, QR rules, operational procedures, and limitations across all 28 enterprise domains.',
+    parameters: {
+      topic: {
+        type: 'string',
+        description: 'Specific knowledge domain to retrieve. Options: business_rules, database_structure, entity_relationships, user_roles, permissions, workflows, attendance_rules, working_hour_rules, overtime_rules, payroll_rules, payroll_approval_rules, qr_code_rules, notification_rules, ai_capabilities, security_policies, terminology, system_configuration, reports, dashboards, employees, attendance, departments, payroll, audit_requirements, data_privacy_requirements, operational_procedures, error_conditions, system_limitations, or "all".',
+      },
+    },
+    requiredParams: [],
+    allowedRoles: ['Administrator', 'HR Officer', 'Payroll Officer', 'Employee', 'Management'],
     isWriteAction: false,
     riskLevel: 'LOW',
   },
 ];
 
 // ----------------------------------------------------
-// Tool Execution Engine (Calling Existing Services)
+// Tool Executor Engine
 // ----------------------------------------------------
 export class AIToolExecutor {
-  static getTool(name: string): AIToolDefinition | undefined {
-    return AI_TOOLS.find((t) => t.name === name);
-  }
-
   static async execute(
     name: string,
     args: Record<string, any>,
-    context: AIToolContext,
-    isConfirmed = false
+    context: AIToolContext
   ): Promise<AIToolExecutionResult> {
-    const tool = this.getTool(name);
-    if (!tool) {
-      return { success: false, error: `Tool "${name}" is not registered in the system.` };
+    const toolDef = AI_TOOLS.find((t) => t.name === name);
+    if (!toolDef) {
+      return { success: false, error: `Unknown tool "${name}".` };
     }
 
-    // 1. Validate role permission
-    const permCheck = AIPermissionValidator.validateToolAccess(tool, context.user);
-    if (!permCheck.allowed) {
-      return { success: false, error: permCheck.reason };
+    // RBAC validation
+    const access = AIPermissionValidator.validateToolAccess(toolDef, context.user);
+    if (!access.allowed) {
+      return { success: false, error: access.reason };
     }
 
-    // 2. Validate and sanitize parameters (including employee isolation)
-    const paramCheck = AIPermissionValidator.sanitizeAndValidateToolParams(name, args, context.user);
-    if (!paramCheck.valid) {
-      return { success: false, error: paramCheck.error };
+    // IDOR / Parameter isolation
+    const paramValidation = AIPermissionValidator.sanitizeAndValidateToolParams(
+      name,
+      args,
+      context.user
+    );
+    if (!paramValidation.valid) {
+      return { success: false, error: paramValidation.error };
     }
-    const sanitizedArgs = paramCheck.sanitizedArgs;
+    const sanitizedArgs = paramValidation.sanitizedArgs;
 
-    // 3. Sensitive Action Confirmation Check
-    if (tool.isWriteAction && !isConfirmed) {
-      let prompt = `I am prepared to execute "${tool.name}".`;
-      if (name === 'deactivate_employee') {
-        const emp = await getEmployeeById(sanitizedArgs.employeeId);
-        prompt = `Are you sure you want to deactivate ${emp ? `${emp.firstName} ${emp.lastName} (${emp.employeeCode})` : `Employee ID ${sanitizedArgs.employeeId}`}? This will revoke their security QR badge and prevent attendance punches.`;
-      } else if (name === 'send_notification') {
-        prompt = `Are you sure you want to dispatch this notification ("${sanitizedArgs.title}") to ${sanitizedArgs.recipientType}?`;
-      } else if (name === 'process_batch_payroll') {
-        prompt = `Are you sure you want to process payroll for period ${sanitizedArgs.period}?`;
-      }
-
-      return {
-        success: true,
-        requiresConfirmation: true,
-        confirmationPrompt: prompt,
-        actionDetails: {
-          toolName: name,
-          arguments: sanitizedArgs,
-        },
-      };
-    }
-
-    // 4. Dispatch to verified application services
     try {
       switch (name) {
         case 'get_current_user': {
-          let empData = null;
+          let employeeDetails: any = null;
           if (context.user.employeeId) {
-            empData = await getEmployeeById(context.user.employeeId);
+            employeeDetails = await getEmployeeById(context.user.employeeId);
           }
           return {
             success: true,
             data: {
-              user: context.user,
-              employeeProfile: empData,
+              userId: context.user.userId,
+              username: context.user.username,
+              roleName: context.user.roleName,
+              employeeId: context.user.employeeId,
+              employeeDetails: employeeDetails
+                ? {
+                    employeeCode: employeeDetails.employeeCode,
+                    firstName: employeeDetails.firstName,
+                    lastName: employeeDetails.lastName,
+                    position: employeeDetails.position,
+                    departmentId: employeeDetails.departmentId,
+                  }
+                : null,
             },
           };
         }
 
         case 'get_attendance_summary': {
           const stats = await getDashboardStats();
+          const targetDate = sanitizedArgs.date || new Date().toISOString().split('T')[0];
           return {
             success: true,
             data: {
-              date: sanitizedArgs.date || new Date().toISOString().split('T')[0],
+              date: targetDate,
               totalEmployees: stats.totalEmployees,
               presentToday: stats.presentToday,
               lateToday: stats.lateToday,
               absentToday: stats.absentToday,
-              overtimeHoursToday: stats.overtimeHoursToday,
               attendanceRate: stats.attendanceRate,
+              overtimeHours: stats.overtimeHoursToday,
             },
           };
         }
 
         case 'get_late_employees': {
           const targetDate = sanitizedArgs.date || new Date().toISOString().split('T')[0];
-          const records = await getAttendanceList({ date: targetDate, status: 'Late' });
+          const lateRecords = await getAttendanceList({ date: targetDate, status: 'Late' });
+          const allStaff = await getEmployees();
+          const staffMap = new Map(allStaff.map((s) => [s.id, s]));
+
           return {
             success: true,
             data: {
               date: targetDate,
-              count: records.length,
-              lateEmployees: records.map((r) => ({
-                employeeCode: r.employeeCode,
-                employeeName: r.employeeName,
-                department: r.departmentName,
-                checkIn: r.checkIn,
-                standardCheckIn: '08:00:00',
-              })),
+              totalLate: lateRecords.length,
+              lateEmployees: lateRecords.map((r) => {
+                const emp = staffMap.get(r.employeeId);
+                return {
+                  employeeCode: r.employeeCode || emp?.employeeCode,
+                  employeeName: r.employeeName || (emp ? `${emp.firstName} ${emp.lastName}` : 'Unknown'),
+                  checkIn: r.checkIn,
+                  standardCheckIn: '08:00:00',
+                  graceCutoff: '08:30:00',
+                  department: emp?.departmentName || 'General',
+                };
+              }),
             },
           };
         }
@@ -354,19 +410,18 @@ export class AIToolExecutor {
         case 'get_absent_employees': {
           const targetDate = sanitizedArgs.date || new Date().toISOString().split('T')[0];
           const allStaff = await getEmployees({ status: 'active' });
-          const dayAtt = await getAttendanceList({ date: targetDate });
-          const presentIds = new Set(dayAtt.map((a) => a.employeeId));
+          const dayRecords = await getAttendanceList({ date: targetDate });
+          const presentIds = new Set(dayRecords.map((a) => a.employeeId));
           const absentStaff = allStaff.filter((s) => !presentIds.has(s.id));
 
           return {
             success: true,
             data: {
               date: targetDate,
-              count: absentStaff.length,
+              totalAbsent: absentStaff.length,
               absentEmployees: absentStaff.map((s) => ({
-                id: s.id,
                 employeeCode: s.employeeCode,
-                name: `${s.firstName} ${s.lastName}`,
+                employeeName: `${s.firstName} ${s.lastName}`,
                 department: s.departmentName,
                 position: s.position,
               })),
@@ -375,54 +430,64 @@ export class AIToolExecutor {
         }
 
         case 'get_employee_attendance': {
-          const empId = sanitizedArgs.employeeId;
-          const records = await getAttendanceList({
-            employeeId: empId,
-            startDate: sanitizedArgs.startDate,
-            endDate: sanitizedArgs.endDate,
-          });
+          const targetEmpId = Number(sanitizedArgs.employeeId);
+          const emp = await getEmployeeById(targetEmpId);
+          if (!emp) {
+            return { success: false, error: `Employee ID ${targetEmpId} not found.` };
+          }
+          const records = await getAttendanceList({ employeeId: targetEmpId });
+          const limit = sanitizedArgs.limit ? Number(sanitizedArgs.limit) : 10;
           return {
             success: true,
             data: {
-              employeeId: empId,
+              employeeName: `${emp.firstName} ${emp.lastName}`,
+              employeeCode: emp.employeeCode,
               totalRecords: records.length,
-              records: records.slice(0, 30),
+              records: records.slice(0, limit).map((r) => ({
+                date: r.attendanceDate,
+                checkInTime: r.checkIn,
+                checkOutTime: r.checkOut,
+                status: r.status,
+                workingHours: r.workingHours,
+                overtimeHours: r.overtimeHours,
+              })),
             },
           };
         }
 
         case 'get_payroll_summary': {
-          const period = sanitizedArgs.period || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
-          const records = await getPayrollList({ period });
-
-          const totalBasic = records.reduce((s, r) => s + parseFloat(r.basicSalary || '0'), 0);
-          const totalGross = records.reduce((s, r) => s + parseFloat(r.grossSalary || '0'), 0);
-          const totalOvertime = records.reduce((s, r) => s + parseFloat(r.overtimeAmount || '0'), 0);
-          const totalAllowances = records.reduce((s, r) => s + parseFloat(r.allowances || '0'), 0);
-          const totalDeductions = records.reduce((s, r) => s + parseFloat(r.deductions || '0'), 0);
-          const totalNet = records.reduce((s, r) => s + parseFloat(r.netSalary || '0'), 0);
+          const period = sanitizedArgs.period || new Date().toISOString().slice(0, 7);
+          const payrolls = await getPayrollList({ period });
+          const totalGross = payrolls.reduce((sum, p) => sum + parseFloat(p.grossSalary?.toString() || p.basicSalary?.toString() || '0'), 0);
+          const totalNet = payrolls.reduce((sum, p) => sum + parseFloat(p.netSalary?.toString() || '0'), 0);
+          const totalDeductions = payrolls.reduce((sum, p) => sum + parseFloat(p.deductions?.toString() || '0'), 0);
+          const totalOT = payrolls.reduce((sum, p) => sum + parseFloat(p.overtimeAmount?.toString() || '0'), 0);
 
           return {
             success: true,
             data: {
               payrollPeriod: period,
-              totalEmployeesProcessed: records.length,
-              totalBasicSalary: totalBasic.toFixed(2),
-              totalOvertimeAmount: totalOvertime.toFixed(2),
-              totalAllowances: totalAllowances.toFixed(2),
-              totalDeductions: totalDeductions.toFixed(2),
+              totalEmployeesProcessed: payrolls.length,
+              currency: 'SLE (NLe)',
               totalGrossSalary: totalGross.toFixed(2),
               totalNetSalary: totalNet.toFixed(2),
-              status: records.length > 0 ? records[0].status : 'Pending',
+              totalDeductions: totalDeductions.toFixed(2),
+              totalOvertimeAmount: totalOT.toFixed(2),
             },
           };
         }
 
         case 'get_my_payroll': {
           if (!context.user.employeeId) {
-            return { success: false, error: 'No employee record linked to this account.' };
+            return {
+              success: true,
+              data: {
+                found: false,
+                message: 'No linked employee profile associated with this account.',
+              },
+            };
           }
-          const period = sanitizedArgs.period;
+          const period = sanitizedArgs.period || new Date().toISOString().slice(0, 7);
           const records = await getPayrollList({
             employeeId: context.user.employeeId,
             period,
@@ -433,8 +498,8 @@ export class AIToolExecutor {
               success: true,
               data: {
                 found: false,
-                message: 'No payroll records found for your profile in the current period.',
-                employeeId: context.user.employeeId,
+                period,
+                message: `No payslip found for period ${period}.`,
               },
             };
           }
@@ -450,40 +515,62 @@ export class AIToolExecutor {
               department: latest.departmentName,
               position: latest.position,
               basicSalary: latest.basicSalary,
-              overtimeHours: latest.overtimeHours,
               overtimeAmount: latest.overtimeAmount,
               allowances: latest.allowances,
               deductions: latest.deductions,
-              grossSalary: latest.grossSalary,
               netSalary: latest.netSalary,
-              status: latest.status,
-              formula: {
-                gross: `${latest.basicSalary} (Basic) + ${latest.overtimeAmount} (OT) + ${latest.allowances} (Allowances) = ${latest.grossSalary}`,
-                net: `${latest.grossSalary} (Gross) - ${latest.deductions} (Deductions) = ${latest.netSalary}`,
-              },
+              status: latest.status || 'Processed',
             },
           };
         }
 
         case 'get_overtime_summary': {
           const list = await getOvertimeList();
+          const filtered = sanitizedArgs.status
+            ? list.filter((o) => o.status === sanitizedArgs.status)
+            : list;
+
+          const totalHours = filtered.reduce((sum, o) => sum + parseFloat(o.hours?.toString() || '0'), 0);
+          const pendingCount = list.filter((o) => o.status === 'Pending').length;
+
           return {
             success: true,
             data: {
-              totalRecords: list.length,
-              records: list.slice(0, 20),
+              totalRecords: filtered.length,
+              totalHours: totalHours.toFixed(1),
+              pendingCount,
+              records: filtered.slice(0, 15).map((o) => ({
+                id: o.id,
+                employeeName: o.employeeName,
+                date: o.overtimeDate,
+                hours: o.hours,
+                reason: o.reason,
+                status: o.status,
+              })),
             },
           };
         }
 
         case 'get_department_summary': {
           const depts = await getDepartments();
-          const stats = await getDashboardStats();
+          const allStaff = await getEmployees();
+          const deptMap = new Map<number, number>();
+          allStaff.forEach((s) => {
+            const count = deptMap.get(s.departmentId) || 0;
+            deptMap.set(s.departmentId, count + 1);
+          });
+
           return {
             success: true,
             data: {
-              departments: depts,
-              departmentCounts: stats.departmentCounts,
+              totalDepartments: depts.length,
+              totalEmployees: allStaff.length,
+              departments: depts.map((d) => ({
+                id: d.id,
+                name: d.departmentName,
+                code: d.departmentName.slice(0, 3).toUpperCase(),
+                headcount: deptMap.get(d.id) || 0,
+              })),
             },
           };
         }
@@ -500,21 +587,21 @@ export class AIToolExecutor {
               anomalies.push({
                 type: 'Excessive Overtime',
                 severity: 'HIGH',
-                description: `Employee recorded ${ot} overtime hours in a single shift (policy threshold is 4.0 hrs).`,
+                description: `Employee logged ${ot} hours of overtime today (policy threshold is 4.0h).`,
                 employee: `${a.employeeName} (${a.employeeCode})`,
               });
             }
           });
 
-          // Anomaly 2: Open punches after 19:00 with no check-out
+          // Anomaly 2: Open punches past 18:00 with no check-out
           const currentHour = new Date().getHours();
-          if (currentHour >= 19) {
+          if (currentHour >= 18) {
             todayAtt.forEach((a) => {
               if (a.checkIn && !a.checkOut) {
                 anomalies.push({
                   type: 'Missing Check-Out',
                   severity: 'MEDIUM',
-                  description: `Employee checked in at ${a.checkIn} but has not recorded a check-out past 19:00.`,
+                  description: `Checked in at ${a.checkIn} but has not recorded a check-out punch past 18:00.`,
                   employee: `${a.employeeName} (${a.employeeCode})`,
                 });
               }
@@ -525,7 +612,7 @@ export class AIToolExecutor {
             success: true,
             data: {
               date: today,
-              totalAnomaliesDetected: anomalies.length,
+              totalAnomalies: anomalies.length,
               anomalies,
             },
           };
@@ -552,24 +639,13 @@ export class AIToolExecutor {
             targets = lateAtt.map((l) => l.employeeId);
           }
 
-          if (targets.length === 0) {
-            return {
-              success: true,
-              data: {
-                message: `No matching employees found for target criteria "${recipientType}". No notifications sent.`,
-                count: 0,
-              },
-            };
-          }
-
-          // Dispatch via unified NotificationDispatcher
           for (const empId of targets) {
             await NotificationDispatcher.dispatch({
               employeeId: empId,
               title,
               message,
               category: category || 'Announcement',
-              priority: 'medium',
+              priority: 'normal',
               channel: 'in_app',
             });
           }
@@ -584,14 +660,27 @@ export class AIToolExecutor {
           };
         }
 
-        case 'deactivate_employee': {
-          const empId = Number(sanitizedArgs.employeeId);
-          const deactivated = await deleteEmployee(empId);
+        case 'approve_overtime': {
+          const id = Number(sanitizedArgs.overtimeId);
+          const result = await approveOvertimeRecord(id, context.user.userId, context.user.username);
           return {
             success: true,
             data: {
-              message: `Employee ${deactivated.firstName} ${deactivated.lastName} (${deactivated.employeeCode}) has been deactivated. Security QR badge revoked.`,
-              employeeId: empId,
+              message: `Overtime claim #${id} approved successfully.`,
+              overtimeRecord: result,
+            },
+          };
+        }
+
+        case 'reject_overtime': {
+          const id = Number(sanitizedArgs.overtimeId);
+          const reason = sanitizedArgs.reason || 'Not approved by management';
+          const result = await rejectOvertimeRecord(id, context.user.userId, context.user.username, reason);
+          return {
+            success: true,
+            data: {
+              message: `Overtime claim #${id} rejected.`,
+              overtimeRecord: result,
             },
           };
         }
@@ -602,34 +691,123 @@ export class AIToolExecutor {
           return {
             success: true,
             data: {
-              message: `Payroll processed for period ${period}. Total employees calculated: ${result.length}.`,
-              summary: result,
+              message: `Payroll processed for period ${period}. Total employee records evaluated: ${result.length}.`,
+              period,
+              count: result.length,
             },
           };
         }
 
         case 'get_company_info': {
-          const knowledge = await getCompanyKnowledge();
+          const settings = await getSettingsMap();
           return {
             success: true,
             data: {
-              companyName: knowledge.company_name || 'Apex Enterprise SL Ltd',
-              legalName: knowledge.company_legal_name || 'Apex Enterprise Solutions (SL) Ltd.',
-              tagline: knowledge.company_tagline || "Sierra Leone's Leading Enterprise Workforce Management & Automated Payroll Solutions Provider",
-              headquarters: knowledge.company_headquarters || '15 Siaka Stevens Street, Freetown, Sierra Leone',
-              contact: knowledge.company_contact || 'info@apexenterprise.sl | +232 76 892 411',
-              overview: knowledge.company_overview,
-              services: knowledge.company_services,
-              systemArchitecture: knowledge.system_architecture_overview,
-              attendanceWorkflow: knowledge.system_attendance_workflow,
-              payrollWorkflow: knowledge.system_payroll_workflow,
-              aiAssistant: knowledge.system_ai_assistant,
+              companyName: settings.company_name || 'Apex Enterprise SL Ltd',
+              legalName: (settings as any).company_legal_name || 'Apex Enterprise Solutions (SL) Ltd.',
+              tagline: (settings as any).company_tagline || "Sierra Leone's Leading Enterprise Workforce Management & Automated Payroll Solutions Provider",
+              headquarters: (settings as any).company_headquarters || '15 Siaka Stevens Street, Freetown, Sierra Leone',
+              contact: (settings as any).company_contact || 'info@apexenterprise.sl | +232 76 892 411',
+              systemOverview: 'Smart Employee Attendance and Payroll Management System built for Sierra Leone statutory compliance.',
+            },
+          };
+        }
+
+        case 'get_business_rules': {
+          const filtered = sanitizedArgs.category
+            ? APEX_BUSINESS_RULES.filter((r) => r.category === sanitizedArgs.category)
+            : APEX_BUSINESS_RULES;
+          return {
+            success: true,
+            data: {
+              totalRules: filtered.length,
+              rules: filtered,
+            },
+          };
+        }
+
+        case 'get_data_dictionary': {
+          if (sanitizedArgs.tableName && APEX_DATA_DICTIONARY[sanitizedArgs.tableName]) {
+            return {
+              success: true,
+              data: {
+                table: APEX_DATA_DICTIONARY[sanitizedArgs.tableName],
+              },
+            };
+          }
+          return {
+            success: true,
+            data: {
+              availableTables: Object.keys(APEX_DATA_DICTIONARY),
+              dictionary: APEX_DATA_DICTIONARY,
+            },
+          };
+        }
+
+        case 'get_security_policies': {
+          if (sanitizedArgs.role && APEX_SECURITY_POLICIES[sanitizedArgs.role]) {
+            return {
+              success: true,
+              data: {
+                policy: APEX_SECURITY_POLICIES[sanitizedArgs.role],
+              },
+            };
+          }
+          return {
+            success: true,
+            data: {
+              policies: APEX_SECURITY_POLICIES,
+            },
+          };
+        }
+
+        case 'get_system_knowledge': {
+          const topic = sanitizedArgs.topic?.toLowerCase()?.trim() || 'all';
+          if (topic === 'all') {
+            const allDomains = Object.values(APEX_APPLICATION_CONTEXT);
+            return {
+              success: true,
+              data: {
+                totalDomains: allDomains.length,
+                availableTopics: allDomains.map(d => ({
+                  id: d.id,
+                  name: d.name,
+                  category: d.category,
+                  summary: d.summary,
+                })),
+                context: APEX_APPLICATION_CONTEXT,
+              },
+            };
+          }
+          const matchedKey = Object.keys(APEX_APPLICATION_CONTEXT).find(k =>
+            k.toLowerCase() === topic.replace(/[- ]/g, '_') ||
+            k.toLowerCase().includes(topic.replace(/[- ]/g, '_')) ||
+            topic.replace(/[- ]/g, '_').includes(k.toLowerCase())
+          );
+          if (matchedKey) {
+            const domain = APEX_APPLICATION_CONTEXT[matchedKey];
+            return {
+              success: true,
+              data: {
+                topic: domain,
+                domainKey: matchedKey,
+                details: domain.details,
+                summary: domain.summary,
+                guidelines: domain.guidelines,
+              },
+            };
+          }
+          return {
+            success: true,
+            data: {
+              error: `Domain "${topic}" not found. Available topics: ${Object.keys(APEX_APPLICATION_CONTEXT).join(', ')}`,
+              availableTopics: Object.keys(APEX_APPLICATION_CONTEXT),
             },
           };
         }
 
         default:
-          return { success: false, error: `Tool handler for "${name}" is not implemented.` };
+          return { success: false, error: `Tool "${name}" is not implemented.` };
       }
     } catch (err: any) {
       return { success: false, error: err.message || 'Execution error' };
@@ -651,5 +829,3 @@ export async function executeAITool(
 ): Promise<AIToolExecutionResult> {
   return AIToolExecutor.execute(name, args, context);
 }
-
-

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Department } from '../../types/index.ts';
-import { X, Building, AlertCircle, RefreshCw, Sparkles } from 'lucide-react';
+import { X, Building, AlertCircle, RefreshCw, Plus } from 'lucide-react';
 import { api } from '../../services/api.ts';
 
 interface DepartmentModalProps {
@@ -155,7 +155,7 @@ export const DepartmentModal: React.FC<DepartmentModalProps> = ({
                 <span>Save Changes</span>
               ) : (
                 <>
-                  <Sparkles className="h-3.5 w-3.5" />
+                  <Plus className="h-3.5 w-3.5" />
                   <span>Create Department</span>
                 </>
               )}

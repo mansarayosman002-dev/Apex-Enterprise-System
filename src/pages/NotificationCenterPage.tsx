@@ -16,7 +16,6 @@ import {
   DollarSign,
   CalendarCheck,
   Send,
-  Sparkles,
   Settings2,
   BarChart3,
   Users,
@@ -35,6 +34,7 @@ import {
   NotificationItem,
 } from '../components/notifications/NotificationDetailModal.tsx';
 import { extractCleanSnippet } from '../components/notifications/NotificationMessageRenderer.tsx';
+import { AIAssistantLogo } from '../components/ai/AIAssistantLogo.tsx';
 
 interface NotificationCenterPageProps {
   onNavigate?: (page: string) => void;
@@ -54,6 +54,7 @@ export const NotificationCenterPage: React.FC<NotificationCenterPageProps> = ({ 
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [page, setPage] = useState<number>(1);
   const [selectedNotification, setSelectedNotification] = useState<NotificationItem | null>(null);
+  const [focusReplyOnOpen, setFocusReplyOnOpen] = useState<boolean>(false);
 
   // Composer State
   const [recipientType, setRecipientType] = useState<'individual' | 'department' | 'all'>('individual');
@@ -330,7 +331,7 @@ export const NotificationCenterPage: React.FC<NotificationCenterPageProps> = ({ 
       case 'hr':
         return <Users className="h-4 w-4 text-blue-500" />;
       case 'ai':
-        return <Sparkles className="h-4 w-4 text-purple-500" />;
+        return <AIAssistantLogo size="xs" withGlow={false} />;
       default:
         return <Info className="h-4 w-4 text-slate-400" />;
     }
@@ -347,7 +348,7 @@ export const NotificationCenterPage: React.FC<NotificationCenterPageProps> = ({ 
             </div>
             <div>
               <h1 className="text-xl font-bold text-slate-900 dark:text-white flex items-center space-x-2">
-                <span>Notification Center</span>
+                <span>Notifications</span>
                 {unreadCount > 0 && (
                   <span className="rounded-full bg-rose-500 px-2 py-0.5 text-xs font-bold text-white">
                     {unreadCount} unread
@@ -355,7 +356,7 @@ export const NotificationCenterPage: React.FC<NotificationCenterPageProps> = ({ 
                 )}
               </h1>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Central communication layer for attendance, overtime, payroll approvals, and corporate notices
+                Alerts, shift updates, and company notices.
               </p>
             </div>
           </div>
@@ -510,7 +511,10 @@ export const NotificationCenterPage: React.FC<NotificationCenterPageProps> = ({ 
                   }`}
                 >
                   <div
-                    onClick={() => setSelectedNotification(notif)}
+                    onClick={() => {
+                      setSelectedNotification(notif);
+                      setFocusReplyOnOpen(false);
+                    }}
                     className="flex items-start space-x-3.5 flex-1 cursor-pointer"
                   >
                     <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xs shrink-0 mt-0.5">
@@ -565,6 +569,19 @@ export const NotificationCenterPage: React.FC<NotificationCenterPageProps> = ({ 
 
                   {/* Actions column */}
                   <div className="flex items-center space-x-1 shrink-0">
+                    <button
+                      title="Reply to notification"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedNotification(notif);
+                        setFocusReplyOnOpen(true);
+                      }}
+                      className="flex items-center space-x-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-indigo-600 bg-indigo-50/80 hover:bg-indigo-100 dark:text-indigo-400 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 transition shadow-2xs"
+                    >
+                      <MessageSquare className="h-3.5 w-3.5" />
+                      <span className="hidden sm:inline">Reply</span>
+                    </button>
+
                     {!notif.isRead ? (
                       <button
                         title="Mark as read"
@@ -1070,25 +1087,25 @@ export const NotificationCenterPage: React.FC<NotificationCenterPageProps> = ({ 
         <div className="space-y-6">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xs">
-              <span className="text-xs text-slate-500 dark:text-slate-400">Total Dispatched</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Dispatched</span>
               <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
                 {analytics.total}
               </p>
             </div>
             <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xs">
-              <span className="text-xs text-slate-500 dark:text-slate-400">Unread</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Unread</span>
               <p className="text-2xl font-bold text-indigo-600 mt-1">
                 {analytics.unread}
               </p>
             </div>
             <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xs">
-              <span className="text-xs text-slate-500 dark:text-slate-400">Delivered</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Delivered</span>
               <p className="text-2xl font-bold text-emerald-600 mt-1">
                 {analytics.delivered}
               </p>
             </div>
             <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xs">
-              <span className="text-xs text-slate-500 dark:text-slate-400">Delivery Failures</span>
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Failed</span>
               <p className="text-2xl font-bold text-rose-600 mt-1">
                 {analytics.failed}
               </p>
@@ -1190,8 +1207,12 @@ export const NotificationCenterPage: React.FC<NotificationCenterPageProps> = ({ 
       <NotificationDetailModal
         notification={selectedNotification}
         isOpen={Boolean(selectedNotification)}
-        onClose={() => setSelectedNotification(null)}
+        onClose={() => {
+          setSelectedNotification(null);
+          setFocusReplyOnOpen(false);
+        }}
         onToggleRead={handleMarkAsRead}
+        initialFocusReply={focusReplyOnOpen}
       />
 
       {/* Mass Notification Confirmation Guard Modal (Section 29) */}

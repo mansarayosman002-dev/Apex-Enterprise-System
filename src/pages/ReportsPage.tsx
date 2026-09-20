@@ -20,7 +20,7 @@ import {
   Users,
   ShieldCheck,
   ShieldAlert,
-  Sparkles,
+  TrendingUp,
   RefreshCw,
   X,
   FileSpreadsheet,
@@ -29,7 +29,9 @@ import {
   CheckCircle2,
   FileText,
 } from 'lucide-react';
-import { exportTableToCsv, exportTableToPdf } from '../utils/exportDocument.ts';
+import { exportTableToExcel, exportTableToPdf } from '../utils/exportDocument.ts';
+import { StatCard } from '../components/common/StatCard.tsx';
+import logoImg from '../assets/apex_logo.jpg';
 
 type SortDirection = 'asc' | 'desc' | null;
 
@@ -365,10 +367,13 @@ export const ReportsPage: React.FC = () => {
 
   const totalPayPages = Math.ceil(processedPayrollRecords.length / payPageSize) || 1;
 
-  // Export Attendance CSV
-  const exportAttendanceCSV = () => {
+  // Export Attendance Excel Workbook (.xls)
+  const exportAttendanceExcel = () => {
     if (!processedAttendanceRecords.length) return;
-    exportTableToCsv({
+    const totalWorkingHours = processedAttendanceRecords.reduce((acc, r) => acc + (parseFloat(r.workingHours?.toString() || '0') || 0), 0);
+    const totalOvertimeHours = processedAttendanceRecords.reduce((acc, r) => acc + (parseFloat(r.overtimeHours?.toString() || '0') || 0), 0);
+
+    exportTableToExcel({
       title: 'Workforce Attendance Audit Report',
       subtitle: 'Aggregated attendance records, shift timestamps, and punctuality distribution',
       filenamePrefix: `Apex_Attendance_Report_${todayStr}`,
@@ -377,6 +382,8 @@ export const ReportsPage: React.FC = () => {
         'Department Scope': departments.find((d) => String(d.id) === attDept)?.departmentName || 'All Departments',
         'Punctuality Filter': attStatus || 'All Statuses',
         'Total Audited Records': processedAttendanceRecords.length,
+        'Aggregated Working Hours': `${totalWorkingHours.toFixed(1)} hrs`,
+        'Aggregated Overtime Hours': `${totalOvertimeHours.toFixed(1)} hrs`,
       },
       headers: [
         'Employee ID',
@@ -400,12 +407,26 @@ export const ReportsPage: React.FC = () => {
         r.overtimeHours,
         r.status,
       ]),
+      summaryRow: [
+        'TOTALS',
+        `Audited: ${processedAttendanceRecords.length}`,
+        '',
+        '',
+        '',
+        '',
+        totalWorkingHours.toFixed(2),
+        totalOvertimeHours.toFixed(2),
+        '',
+      ],
     });
   };
 
   // Export Attendance PDF
   const exportAttendancePDF = () => {
     if (!processedAttendanceRecords.length) return;
+    const totalWorkingHours = processedAttendanceRecords.reduce((acc, r) => acc + (parseFloat(r.workingHours?.toString() || '0') || 0), 0);
+    const totalOvertimeHours = processedAttendanceRecords.reduce((acc, r) => acc + (parseFloat(r.overtimeHours?.toString() || '0') || 0), 0);
+
     exportTableToPdf({
       title: 'Workforce Attendance Audit Report',
       subtitle: 'Official corporate attendance ledger and working hours summary',
@@ -414,8 +435,9 @@ export const ReportsPage: React.FC = () => {
         'Period': `${attStartDate || 'All Time'} to ${attEndDate || 'Present'}`,
         'Department': departments.find((d) => String(d.id) === attDept)?.departmentName || 'All Departments',
         'Status': attStatus || 'All Statuses',
+        'Total Hours': `${totalWorkingHours.toFixed(1)} hrs`,
       },
-      headers: ['Employee ID', 'Name', 'Department', 'Date', 'In', 'Out', 'Hours', 'OT', 'Status'],
+      headers: ['Emp ID', 'Name', 'Department', 'Date', 'In', 'Out', 'Hours', 'OT', 'Status'],
       rows: processedAttendanceRecords.map((r) => [
         r.employeeCode || '',
         r.employeeName || '',
@@ -427,17 +449,31 @@ export const ReportsPage: React.FC = () => {
         r.overtimeHours,
         r.status,
       ]),
+      summaryRow: [
+        'TOTALS',
+        `Count: ${processedAttendanceRecords.length}`,
+        '',
+        '',
+        '',
+        '',
+        totalWorkingHours.toFixed(1),
+        totalOvertimeHours.toFixed(1),
+        '',
+      ],
     });
   };
 
-  // Export Payroll CSV
-  const exportPayrollCSV = () => {
+  // Export Payroll Excel Workbook (.xls)
+  const exportPayrollExcel = () => {
     if (!processedPayrollRecords.length) return;
+    const totalBasic = processedPayrollRecords.reduce((acc, r) => acc + parseFloat(r.basicSalary?.toString() || '0'), 0);
     const totalGross = processedPayrollRecords.reduce((acc, r) => acc + parseFloat(r.grossSalary?.toString() || '0'), 0);
     const totalNet = processedPayrollRecords.reduce((acc, r) => acc + parseFloat(r.netSalary?.toString() || '0'), 0);
     const totalOT = processedPayrollRecords.reduce((acc, r) => acc + parseFloat(r.overtimeAmount?.toString() || '0'), 0);
+    const totalAllowances = processedPayrollRecords.reduce((acc, r) => acc + parseFloat(r.allowances?.toString() || '0'), 0);
+    const totalDeductions = processedPayrollRecords.reduce((acc, r) => acc + parseFloat(r.deductions?.toString() || '0'), 0);
 
-    exportTableToCsv({
+    exportTableToExcel({
       title: 'Executive Payroll Statement & Compensation Report',
       subtitle: 'Aggregated payroll distributions, statutory deductions, overtime adjustments, and disbursements',
       filenamePrefix: `Apex_Payroll_Report_${payPeriod || todayStr}`,
@@ -477,13 +513,13 @@ export const ReportsPage: React.FC = () => {
       ]),
       summaryRow: [
         'TOTALS',
-        '',
         `Count: ${processedPayrollRecords.length}`,
         '',
         '',
+        totalBasic.toFixed(2),
         totalOT.toFixed(2),
-        '',
-        '',
+        totalAllowances.toFixed(2),
+        totalDeductions.toFixed(2),
         totalGross.toFixed(2),
         totalNet.toFixed(2),
         '',
@@ -494,6 +530,11 @@ export const ReportsPage: React.FC = () => {
   // Export Payroll PDF
   const exportPayrollPDF = () => {
     if (!processedPayrollRecords.length) return;
+    const totalBasic = processedPayrollRecords.reduce((acc, r) => acc + parseFloat(r.basicSalary?.toString() || '0'), 0);
+    const totalGross = processedPayrollRecords.reduce((acc, r) => acc + parseFloat(r.grossSalary?.toString() || '0'), 0);
+    const totalNet = processedPayrollRecords.reduce((acc, r) => acc + parseFloat(r.netSalary?.toString() || '0'), 0);
+    const totalOT = processedPayrollRecords.reduce((acc, r) => acc + parseFloat(r.overtimeAmount?.toString() || '0'), 0);
+
     exportTableToPdf({
       title: 'Executive Payroll Statement & Compensation Report',
       subtitle: 'Official corporate compensation statement and audit report',
@@ -501,6 +542,8 @@ export const ReportsPage: React.FC = () => {
       metadata: {
         'Period': payPeriod || 'All Periods',
         'Department': departments.find((d) => String(d.id) === payDept)?.departmentName || 'All Departments',
+        'Total Gross': `NLe ${totalGross.toFixed(2)}`,
+        'Total Net': `NLe ${totalNet.toFixed(2)}`,
       },
       headers: ['Emp ID', 'Name', 'Department', 'Period', 'Basic', 'OT Pay', 'Gross', 'Net', 'Status'],
       rows: processedPayrollRecords.map((r) => [
@@ -514,6 +557,17 @@ export const ReportsPage: React.FC = () => {
         parseFloat(r.netSalary.toString()).toFixed(2),
         r.status,
       ]),
+      summaryRow: [
+        'TOTALS',
+        `Count: ${processedPayrollRecords.length}`,
+        '',
+        '',
+        totalBasic.toFixed(2),
+        totalOT.toFixed(2),
+        totalGross.toFixed(2),
+        totalNet.toFixed(2),
+        '',
+      ],
     });
   };
 
@@ -619,14 +673,17 @@ export const ReportsPage: React.FC = () => {
       {/* =================================================== */}
       <div className="hidden print:block border-b-2 border-slate-900 pb-4 mb-6">
         <div className="flex justify-between items-start">
-          <div>
-            <h1 className="text-2xl font-black tracking-tight text-slate-900">APEX ENTERPRISE SYSTEMS</h1>
-            <p className="text-xs uppercase tracking-widest text-slate-500 font-semibold mt-0.5">
-              Official Corporate Workforce Audit & Financial Intelligence
-            </p>
-            <h2 className="text-base font-bold text-indigo-950 mt-2">
-              {activeTab === 'attendance' ? 'Workforce Attendance Audit Report' : 'Executive Payroll Statement & Compensation Report'}
-            </h2>
+          <div className="flex items-center space-x-3.5">
+            <img src={logoImg} alt="Apex Enterprise Logo" className="h-14 w-14 object-contain rounded-xl shadow-xs" />
+            <div>
+              <h1 className="text-2xl font-black tracking-tight text-slate-900">APEX ENTERPRISE SYSTEMS</h1>
+              <p className="text-xs uppercase tracking-widest text-slate-500 font-semibold mt-0.5">
+                Official Corporate Workforce Audit & Financial Intelligence
+              </p>
+              <h2 className="text-base font-bold text-indigo-950 mt-1">
+                {activeTab === 'attendance' ? 'Workforce Attendance Audit Report' : 'Executive Payroll Statement & Compensation Report'}
+              </h2>
+            </div>
           </div>
           <div className="text-right text-[11px] text-slate-600">
             <p className="font-semibold text-slate-800">Generated: {new Date().toLocaleString()}</p>
@@ -659,35 +716,42 @@ export const ReportsPage: React.FC = () => {
       {/* 2. ON-SCREEN HEADER & CONTROLS                     */}
       {/* =================================================== */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 print:hidden">
-        <div>
-          <div className="flex items-center space-x-2">
-            <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">Reports & Analytics</h1>
-            {isManagement && (
-              <span className="inline-flex items-center space-x-1 rounded-md bg-purple-50 dark:bg-purple-950/60 px-2 py-0.5 text-[10px] font-semibold text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
-                <Eye className="h-3 w-3" />
-                <span>Management Read-Only</span>
-              </span>
-            )}
-            {isHROfficer && (
-              <span className="inline-flex items-center space-x-1 rounded-md bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 text-[10px] font-semibold text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                <ShieldCheck className="h-3 w-3" />
-                <span>HR Audit Authority</span>
-              </span>
-            )}
-            {isPayrollOfficer && (
-              <span className="inline-flex items-center space-x-1 rounded-md bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                <DollarSign className="h-3 w-3" />
-                <span>Payroll Audit Access</span>
-              </span>
-            )}
+        <div className="flex items-center space-x-3.5">
+          <img
+            src={logoImg}
+            alt="Apex Enterprise Logo"
+            className="h-11 w-11 object-contain rounded-xl shadow-xs ring-1 ring-slate-200 dark:ring-slate-700 shrink-0"
+          />
+          <div>
+            <div className="flex items-center space-x-2">
+              <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">Reports</h1>
+              {isManagement && (
+                <span className="inline-flex items-center space-x-1 rounded-md bg-purple-50 dark:bg-purple-950/60 px-2 py-0.5 text-[10px] font-semibold text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                  <Eye className="h-3 w-3" />
+                  <span>Management</span>
+                </span>
+              )}
+              {isHROfficer && (
+                <span className="inline-flex items-center space-x-1 rounded-md bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 text-[10px] font-semibold text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                  <ShieldCheck className="h-3 w-3" />
+                  <span>HR Audit</span>
+                </span>
+              )}
+              {isPayrollOfficer && (
+                <span className="inline-flex items-center space-x-1 rounded-md bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                  <DollarSign className="h-3 w-3" />
+                  <span>Payroll Audit</span>
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              Timesheets, overtime analytics, and payroll statements.
+            </p>
           </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Audit-ready workforce timesheets, overtime tracking, and aggregated payroll distribution statements
-          </p>
         </div>
 
-        {/* Global Actions (Export CSV, Export PDF, Refresh) */}
-        <div className="flex items-center space-x-2">
+        {/* Global Actions (Export Excel, Export PDF, Refresh) */}
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={activeTab === 'attendance' ? loadAttendanceReport : loadPayrollReport}
             disabled={isLoading}
@@ -699,20 +763,20 @@ export const ReportsPage: React.FC = () => {
           </button>
 
           <button
-            onClick={activeTab === 'attendance' ? exportAttendanceCSV : exportPayrollCSV}
+            onClick={activeTab === 'attendance' ? exportAttendanceExcel : exportPayrollExcel}
             disabled={isLoading || (activeTab === 'attendance' ? !processedAttendanceRecords.length : !processedPayrollRecords.length)}
-            className="flex items-center space-x-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-2xs transition disabled:opacity-50"
-            title="Export filtered records as formatted Excel CSV"
+            className="flex items-center space-x-1.5 rounded-xl border border-emerald-600/30 bg-emerald-50 dark:bg-emerald-950/40 px-3 py-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 shadow-2xs transition disabled:opacity-50"
+            title="Export Excel (.xls)"
           >
             <FileSpreadsheet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-            <span>Export CSV</span>
+            <span>Export Excel</span>
           </button>
 
           <button
             onClick={activeTab === 'attendance' ? exportAttendancePDF : exportPayrollPDF}
             disabled={isLoading || (activeTab === 'attendance' ? !processedAttendanceRecords.length : !processedPayrollRecords.length)}
             className="flex items-center space-x-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-2xs transition disabled:opacity-50"
-            title="Export filtered records as official corporate PDF"
+            title="Export PDF"
           >
             <FileText className="h-4 w-4 text-rose-600 dark:text-rose-400" />
             <span>Export PDF</span>
@@ -728,8 +792,8 @@ export const ReportsPage: React.FC = () => {
           <button
             onClick={() => setActiveTab('attendance')}
             className={`flex-1 flex items-center justify-center space-x-1.5 rounded-lg py-2 transition ${activeTab === 'attendance'
-                ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
           >
             <Calendar className="h-3.5 w-3.5" />
@@ -741,8 +805,8 @@ export const ReportsPage: React.FC = () => {
           <button
             onClick={() => setActiveTab('payroll')}
             className={`flex-1 flex items-center justify-center space-x-1.5 rounded-lg py-2 transition ${activeTab === 'payroll'
-                ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
           >
             <DollarSign className="h-3.5 w-3.5" />
@@ -773,12 +837,12 @@ export const ReportsPage: React.FC = () => {
         <div className="space-y-6">
           {/* Attendance Filters Bar */}
           <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xs space-y-3 print:hidden">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-2.5">
               <div className="flex items-center space-x-1.5 text-xs font-bold text-slate-800 dark:text-white">
                 <Filter className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
                 <span>Attendance Filter Parameters</span>
               </div>
-              <div className="flex items-center space-x-1 text-[11px]">
+              <div className="flex flex-wrap items-center gap-1 text-[11px]">
                 <span className="text-slate-400 dark:text-slate-500 mr-1">Presets:</span>
                 <button
                   onClick={() => setDatePreset('today')}
@@ -915,63 +979,70 @@ export const ReportsPage: React.FC = () => {
           {/* Attendance Summary Statistics Cards */}
           {attendanceData?.summary && (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-              <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3.5 shadow-2xs">
-                <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 text-[10px] font-bold uppercase tracking-wider">
-                  <span>Total Shifts</span>
-                  <Calendar className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
-                </div>
-                <p className="mt-1 text-xl font-black text-slate-900 dark:text-white">{attendanceData.summary.totalRecords}</p>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{attendanceData.summary.uniqueEmployees} Active Employees</p>
-              </div>
+              <StatCard
+                title="Shifts"
+                value={attendanceData.summary.totalRecords}
+                subtitle={`${attendanceData.summary.uniqueEmployees} staff`}
+                icon={Calendar}
+                iconBgColor="bg-slate-100 dark:bg-slate-800"
+                iconTextColor="text-slate-600 dark:text-slate-300"
+                badge="Shifts"
+              />
 
-              <div className="rounded-2xl border border-emerald-100 dark:border-emerald-900/50 bg-emerald-50/40 dark:bg-emerald-950/30 p-3.5 shadow-2xs">
-                <div className="flex items-center justify-between text-emerald-800 dark:text-emerald-300 text-[10px] font-bold uppercase tracking-wider">
-                  <span>Present</span>
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                </div>
-                <p className="mt-1 text-xl font-black text-emerald-700 dark:text-emerald-300">{attendanceData.summary.presentCount}</p>
-                <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium mt-0.5">{attendanceData.summary.attendanceRate}% Rate</p>
-              </div>
+              <StatCard
+                title="Present"
+                value={attendanceData.summary.presentCount}
+                subtitle={`${attendanceData.summary.attendanceRate}% rate`}
+                icon={CheckCircle2}
+                iconBgColor="bg-emerald-50 dark:bg-emerald-950/60"
+                iconTextColor="text-emerald-600 dark:text-emerald-400"
+                badge="Present"
+                badgeColor="bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300"
+                isLive={true}
+              />
 
-              <div className="rounded-2xl border border-amber-100 dark:border-amber-900/50 bg-amber-50/40 dark:bg-amber-950/30 p-3.5 shadow-2xs">
-                <div className="flex items-center justify-between text-amber-800 dark:text-amber-300 text-[10px] font-bold uppercase tracking-wider">
-                  <span>Late Arrivals</span>
-                  <Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
-                </div>
-                <p className="mt-1 text-xl font-black text-amber-700 dark:text-amber-300">{attendanceData.summary.lateCount}</p>
-                <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">Threshold &gt;15 min</p>
-              </div>
+              <StatCard
+                title="Late"
+                value={attendanceData.summary.lateCount}
+                subtitle=">15m grace"
+                icon={Clock}
+                iconBgColor="bg-amber-50 dark:bg-amber-950/60"
+                iconTextColor="text-amber-600 dark:text-amber-400"
+                badge="Late"
+                badgeColor="bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300"
+              />
 
-              <div className="rounded-2xl border border-indigo-100 dark:border-indigo-900/50 bg-indigo-50/40 dark:bg-indigo-950/30 p-3.5 shadow-2xs">
-                <div className="flex items-center justify-between text-indigo-800 dark:text-indigo-300 text-[10px] font-bold uppercase tracking-wider">
-                  <span>Overtime Hours</span>
-                  <Sparkles className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
-                </div>
-                <p className="mt-1 text-xl font-black text-indigo-700 dark:text-indigo-300">
-                  {Number(attendanceData.summary.totalOvertimeHours).toFixed(1)} <span className="text-xs font-normal">hrs</span>
-                </p>
-                <p className="text-[10px] text-indigo-600 dark:text-indigo-400 mt-0.5">{attendanceData.summary.overtimeCount} Overtime Logs</p>
-              </div>
+              <StatCard
+                title="Overtime"
+                value={`${Number(attendanceData.summary.totalOvertimeHours).toFixed(1)} hrs`}
+                subtitle={`${attendanceData.summary.overtimeCount} logs`}
+                icon={TrendingUp}
+                iconBgColor="bg-indigo-50 dark:bg-indigo-950/60"
+                iconTextColor="text-indigo-600 dark:text-indigo-400"
+                badge="1.5x OT"
+                badgeColor="bg-indigo-100 dark:bg-indigo-950/80 text-indigo-800 dark:text-indigo-300"
+              />
 
-              <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3.5 shadow-2xs">
-                <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 text-[10px] font-bold uppercase tracking-wider">
-                  <span>Working Hours</span>
-                  <Clock className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
-                </div>
-                <p className="mt-1 text-xl font-black text-slate-900 dark:text-white">
-                  {Number(attendanceData.summary.totalWorkingHours).toFixed(1)} <span className="text-xs font-normal">hrs</span>
-                </p>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Avg {attendanceData.summary.averageDailyHours} hrs/shift</p>
-              </div>
+              <StatCard
+                title="Hours Worked"
+                value={`${Number(attendanceData.summary.totalWorkingHours).toFixed(1)} hrs`}
+                subtitle={`${attendanceData.summary.averageDailyHours}h avg/shift`}
+                icon={Clock}
+                iconBgColor="bg-blue-50 dark:bg-blue-950/60"
+                iconTextColor="text-blue-600 dark:text-blue-400"
+                badge="Regular"
+              />
 
-              <div className="rounded-2xl border border-rose-100 dark:border-rose-900/50 bg-rose-50/40 dark:bg-rose-950/30 p-3.5 shadow-2xs">
-                <div className="flex items-center justify-between text-rose-800 dark:text-rose-300 text-[10px] font-bold uppercase tracking-wider">
-                  <span>Early Departure</span>
-                  <AlertCircle className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />
-                </div>
-                <p className="mt-1 text-xl font-black text-rose-700 dark:text-rose-300">{attendanceData.summary.earlyDepartureCount || 0}</p>
-                <p className="text-[10px] text-rose-600 dark:text-rose-400 mt-0.5">Shift incomplete</p>
-              </div>
+              <StatCard
+                title="Early Depart"
+                value={attendanceData.summary.earlyDepartureCount || 0}
+                subtitle="Left early"
+                icon={AlertCircle}
+                iconBgColor="bg-rose-50 dark:bg-rose-950/60"
+                iconTextColor="text-rose-600 dark:text-rose-400"
+                badge="Early Dep"
+                badgeColor="bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300"
+              />
             </div>
           )}
 
@@ -1305,65 +1376,87 @@ export const ReportsPage: React.FC = () => {
           {payrollData?.summary && (
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
               {/* 1. Total Employees */}
-              <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 shadow-2xs">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Total Employees</span>
-                <p className="mt-1 text-lg font-black text-slate-900 dark:text-white">{payrollData.summary.totalEmployees}</p>
-                <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">{payrollData.summary.totalRecords} Records</p>
-              </div>
+              <StatCard
+                title="Total Staff"
+                value={payrollData.summary.totalEmployees}
+                subtitle={`${payrollData.summary.totalRecords} records`}
+                icon={Users}
+                iconBgColor="bg-slate-100 dark:bg-slate-800"
+                iconTextColor="text-slate-600 dark:text-slate-300"
+                badge="Staff"
+              />
 
               {/* 2. Total Basic Salary */}
-              <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 shadow-2xs">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Total Basic</span>
-                <p className="mt-1 text-lg font-black text-slate-900 dark:text-white">
-                  {currency}{payrollData.summary.totalBasicSalary.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                </p>
-                <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">Base wages</p>
-              </div>
+              <StatCard
+                title="Basic Pay"
+                value={`${currency}${payrollData.summary.totalBasicSalary.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+                subtitle="Base wages"
+                icon={Building2}
+                iconBgColor="bg-slate-100 dark:bg-slate-800"
+                iconTextColor="text-slate-600 dark:text-slate-300"
+                badge="Base"
+              />
 
               {/* 3. Total Overtime */}
-              <div className="rounded-2xl border border-indigo-100 dark:border-indigo-900/50 bg-indigo-50/40 dark:bg-indigo-950/30 p-3 shadow-2xs">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-800 dark:text-indigo-300">Total Overtime</span>
-                <p className="mt-1 text-lg font-black text-indigo-700 dark:text-indigo-300">
-                  +{currency}{payrollData.summary.totalOvertime.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                </p>
-                <p className="text-[10px] text-indigo-600 dark:text-indigo-400 mt-0.5">1.5x Multiplier</p>
-              </div>
+              <StatCard
+                title="Overtime"
+                value={`+${currency}${payrollData.summary.totalOvertime.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+                subtitle="1.5x rate"
+                icon={TrendingUp}
+                iconBgColor="bg-indigo-50 dark:bg-indigo-950/60"
+                iconTextColor="text-indigo-600 dark:text-indigo-400"
+                badge="OT"
+                badgeColor="bg-indigo-100 dark:bg-indigo-950/80 text-indigo-800 dark:text-indigo-300"
+              />
 
               {/* 4. Total Allowances */}
-              <div className="rounded-2xl border border-emerald-100 dark:border-emerald-900/50 bg-emerald-50/40 dark:bg-emerald-950/30 p-3 shadow-2xs">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">Total Allowances</span>
-                <p className="mt-1 text-lg font-black text-emerald-700 dark:text-emerald-300">
-                  +{currency}{payrollData.summary.totalAllowances.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                </p>
-                <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5">Bonuses & benefits</p>
-              </div>
+              <StatCard
+                title="Allowances"
+                value={`+${currency}${payrollData.summary.totalAllowances.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+                subtitle="Benefits"
+                icon={DollarSign}
+                iconBgColor="bg-emerald-50 dark:bg-emerald-950/60"
+                iconTextColor="text-emerald-600 dark:text-emerald-400"
+                badge="Allow"
+                badgeColor="bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300"
+              />
 
               {/* 5. Total Deductions */}
-              <div className="rounded-2xl border border-rose-100 dark:border-rose-900/50 bg-rose-50/40 dark:bg-rose-950/30 p-3 shadow-2xs">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-rose-800 dark:text-rose-300">Total Deductions</span>
-                <p className="mt-1 text-lg font-black text-rose-700 dark:text-rose-300">
-                  -{currency}{payrollData.summary.totalDeductions.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                </p>
-                <p className="text-[10px] text-rose-600 dark:text-rose-400 mt-0.5">Taxes & withholdings</p>
-              </div>
+              <StatCard
+                title="Deductions"
+                value={`-${currency}${payrollData.summary.totalDeductions.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+                subtitle="NASSIT & PAYE"
+                icon={AlertCircle}
+                iconBgColor="bg-rose-50 dark:bg-rose-950/60"
+                iconTextColor="text-rose-600 dark:text-rose-400"
+                badge="Deductions"
+                badgeColor="bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300"
+              />
 
               {/* 6. Total Gross Salary */}
-              <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 shadow-2xs">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Gross Salary</span>
-                <p className="mt-1 text-lg font-black text-slate-900 dark:text-white">
-                  {currency}{payrollData.summary.totalGrossSalary.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                </p>
-                <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">Basic + OT + Allow</p>
-              </div>
+              <StatCard
+                title="Gross Salary"
+                value={`${currency}${payrollData.summary.totalGrossSalary.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+                subtitle="Pre-tax total"
+                icon={DollarSign}
+                iconBgColor="bg-blue-50 dark:bg-blue-950/60"
+                iconTextColor="text-blue-600 dark:text-blue-400"
+                badge="Gross"
+                badgeColor="bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300"
+              />
 
               {/* 7. Total Net Salary */}
-              <div className="rounded-2xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 p-3 shadow-2xs col-span-2 sm:col-span-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-900 dark:text-emerald-200">Total Net Salary</span>
-                <p className="mt-1 text-lg font-black text-emerald-800 dark:text-emerald-300">
-                  {currency}{payrollData.summary.totalNetSalary.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                </p>
-                <p className="text-[10px] text-emerald-700 dark:text-emerald-400 font-medium mt-0.5">Net Disbursement</p>
-              </div>
+              <StatCard
+                title="Net Payout"
+                value={`${currency}${payrollData.summary.totalNetSalary.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+                subtitle="Disbursement"
+                icon={DollarSign}
+                iconBgColor="bg-emerald-50 dark:bg-emerald-950/60"
+                iconTextColor="text-emerald-600 dark:text-emerald-400"
+                badge="Net"
+                badgeColor="bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300"
+                isLive={true}
+              />
             </div>
           )}
 

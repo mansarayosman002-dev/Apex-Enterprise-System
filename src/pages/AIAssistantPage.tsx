@@ -1,894 +1,1116 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext.tsx';
-import { api, getStoredToken } from '../services/api.ts';
+import { api } from '../services/api.ts';
 import {
-  Sparkles,
-  Zap,
-  ShieldAlert,
   Bot,
   Send,
+  Zap,
+  AlertTriangle,
+  BookOpen,
+  RefreshCw,
   Play,
   CheckCircle2,
-  AlertTriangle,
-  RefreshCw,
   Clock,
-  Check,
-  User,
-  Activity,
-  ToggleLeft,
-  ToggleRight,
-  LogIn,
-  Search,
+  Shield,
+  Database,
+  Briefcase,
+  Users,
+  ChevronRight,
   Plus,
-  ArrowUp,
-  Building2,
-  DollarSign,
-  ShieldCheck,
-  X,
+  Trash2,
+  Lock,
+  ArrowUpRight,
+  Search,
   Share2,
+  Paperclip,
+  Code,
+  Mail,
+  User,
+  MessageSquare,
+  ChevronDown,
+  ArrowUp,
+  FileText,
+  FileSpreadsheet,
+  Sparkles,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
-import { AIMessageRenderer } from '../components/ai/AIMessageRenderer.tsx';
-import { AIMessageActions } from '../components/ai/AIMessageActions.tsx';
+import { motion, AnimatePresence } from 'motion/react';
+import { Badge } from '../components/common/Badge.tsx';
+import { AIAssistantLogo } from '../components/ai/AIAssistantLogo.tsx';
+import { AIMessageActionToolbar } from '../components/ai/AIMessageActionToolbar.tsx';
 import { AIFullViewModal } from '../components/ai/AIFullViewModal.tsx';
-import { AIShareModal } from '../components/ai/AIShareModal.tsx';
+import { AIMarkdownRenderer } from '../components/ai/AIMarkdownRenderer.tsx';
+import { UserAvatar } from '../components/common/UserAvatar.tsx';
+import { shareAiResponse } from '../utils/aiExportUtils.ts';
+
+interface ChatMsg {
+  id?: number;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp?: string;
+  writingStyle?: string;
+}
 
 export const AIAssistantPage: React.FC = () => {
-  const { user, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState<'copilot' | 'automations' | 'anomalies'>('copilot');
+  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState<'chat' | 'automations' | 'anomalies' | 'knowledge'>('chat');
 
-  // Copilot Chat State
-  const [messages, setMessages] = useState<
-    Array<{
-      role: 'user' | 'assistant';
-      content: string;
-      requiresConfirmation?: boolean;
-      pendingAction?: any;
-    }>
-  >([]);
-  const [input, setInput] = useState('');
-  const [isChatLoading, setIsChatLoading] = useState(false);
+  // Chat conversation state
+  const [messages, setMessages] = useState<ChatMsg[]>([]);
+  const [inputMessage, setInputMessage] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const [conversationId, setConversationId] = useState<number | undefined>();
+  const [writingStyle, setWritingStyle] = useState<'Executive' | 'Statutory' | 'Analytical' | 'Concise'>('Statutory');
+  const [isStyleDropdownOpen, setIsStyleDropdownOpen] = useState(false);
+  const [isCaptionActive, setIsCaptionActive] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Response Actions Modals & Editing State
-  const [fullViewContent, setFullViewContent] = useState<string | null>(null);
-  const [shareContent, setShareContent] = useState<string | null>(null);
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  const [editingText, setEditingText] = useState('');
+  // Full View Modal state
+  const [fullViewModal, setFullViewModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    content: string;
+    timestamp?: string;
+  }>({
+    isOpen: false,
+    title: '',
+    content: '',
+  });
 
-  // Automations State
+  // Automations state
   const [automations, setAutomations] = useState<any[]>([]);
-  const [isAutoLoading, setIsAutoLoading] = useState(false);
-  const [runningAutoId, setRunningAutoId] = useState<number | null>(null);
+  const [automationHistory, setAutomationHistory] = useState<any[]>([]);
+  const [runningTaskId, setRunningTaskId] = useState<number | null>(null);
 
-  // Anomalies State
+  // Anomalies state
   const [anomalies, setAnomalies] = useState<any[]>([]);
-  const [isAnomalyLoading, setIsAnomalyLoading] = useState(false);
-  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [isScanningAnomalies, setIsScanningAnomalies] = useState(false);
 
-  const chatBottomRef = useRef<HTMLDivElement>(null);
+  // Knowledge state
+  const [knowledge, setKnowledge] = useState<{
+    businessRules: any[];
+    dataDictionary: Record<string, any>;
+    securityPolicies: Record<string, any>;
+  } | null>(null);
 
-  // Dynamic greeting based on time of day
-  const getGreeting = () => {
+  // Determine greeting based on current time
+  const getGreetingTime = () => {
     const hour = new Date().getHours();
     if (hour < 12) return 'Good Morning';
-    if (hour < 17) return 'Good Afternoon';
+    if (hour < 18) return 'Good Afternoon';
     return 'Good Evening';
   };
 
-  const displayName = user?.employee?.firstName || user?.username || 'Executive';
-
-  // Load automations & anomalies when tabs change
-  useEffect(() => {
-    if (activeTab === 'automations') {
-      fetchAutomations();
-    } else if (activeTab === 'anomalies') {
-      fetchAnomalies();
-      fetchAuditLogs();
-    }
-  }, [activeTab]);
+  const userDisplayName = user?.username
+    ? user.username.charAt(0).toUpperCase() + user.username.slice(1).split('.')[0]
+    : 'Colleague';
 
   useEffect(() => {
     if (messages.length > 0) {
-      chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages, isChatLoading]);
+  }, [messages, isLoading]);
 
-  const fetchAutomations = async () => {
+  useEffect(() => {
+    if (activeTab === 'automations') {
+      loadAutomations();
+    } else if (activeTab === 'anomalies') {
+      loadAnomalies();
+    } else if (activeTab === 'knowledge' && !knowledge) {
+      loadKnowledge();
+    }
+  }, [activeTab]);
+
+  const loadAutomations = async () => {
     try {
-      setIsAutoLoading(true);
-      const token = getStoredToken();
-      const res = await fetch('/api/ai/automations', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setAutomations(data);
-      }
-    } catch (err) {
-      console.error(err);
+      const [list, hist] = await Promise.all([
+        api.getAiAutomations().catch(() => []),
+        api.getAiAutomationHistory().catch(() => []),
+      ]);
+      setAutomations(list);
+      setAutomationHistory(hist);
+    } catch (e) {
+      console.error('Failed to load automations:', e);
+    }
+  };
+
+  const loadAnomalies = async () => {
+    setIsScanningAnomalies(true);
+    try {
+      const list = await api.getAiAnomalies();
+      setAnomalies(list);
+    } catch (e) {
+      console.error('Failed to load anomalies:', e);
     } finally {
-      setIsAutoLoading(false);
+      setIsScanningAnomalies(false);
     }
   };
 
-  const fetchAnomalies = async () => {
+  const loadKnowledge = async () => {
     try {
-      setIsAnomalyLoading(true);
-      const token = getStoredToken();
-      const res = await fetch('/api/ai/anomalies', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setAnomalies(data);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsAnomalyLoading(false);
-    }
-  };
-
-  const handleResolveAnomaly = async (id: number) => {
-    try {
-      const token = getStoredToken();
-      await fetch(`/api/ai/anomalies/${id}/resolve`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      fetchAnomalies();
-    } catch (err) {
-      console.error('Failed to resolve anomaly:', err);
-    }
-  };
-
-  const fetchAuditLogs = async () => {
-    try {
-      const token = getStoredToken();
-      const res = await fetch('/api/ai/activity', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setAuditLogs(data);
-      }
-    } catch (err) {
-      console.warn('Could not load activity logs:', err);
-    }
-  };
-
-  const handleToggleAutomation = async (id: number, currentActive: boolean) => {
-    try {
-      const token = getStoredToken();
-      const res = await fetch(`/api/ai/automations/${id}/toggle`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ isActive: !currentActive }),
-      });
-      if (res.ok) {
-        setAutomations((prev) =>
-          prev.map((a) => (a.id === id ? { ...a, isActive: !currentActive } : a))
-        );
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handleRunAutomation = async (id: number) => {
-    try {
-      setRunningAutoId(id);
-      const token = getStoredToken();
-      const res = await fetch(`/api/ai/automations/${id}/run`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const result = await res.json();
-        alert(`Automation Ran Successfully: ${result.summary}`);
-        fetchAutomations();
-      }
-    } catch (err: any) {
-      alert(`Error running automation: ${err.message}`);
-    } finally {
-      setRunningAutoId(null);
-    }
-  };
-
-  const handleScanAnomalies = async () => {
-    try {
-      setIsAnomalyLoading(true);
-      const token = getStoredToken();
-      const res = await fetch('/api/ai/anomalies/scan', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setAnomalies(data.anomalies || []);
-        alert(`Scan completed. Found ${data.count} anomaly records.`);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsAnomalyLoading(false);
+      const data = await api.getAiKnowledge();
+      setKnowledge(data);
+    } catch (e) {
+      console.error('Failed to load knowledge:', e);
     }
   };
 
   const handleSendMessage = async (textToSend?: string) => {
-    const query = (textToSend || input).trim();
-    if (!query || isChatLoading) return;
+    const prompt = (textToSend || inputMessage).trim();
+    if (!prompt || isLoading) return;
 
-    setMessages((prev) => [...prev, { role: 'user', content: query }]);
-    setInput('');
-    setIsChatLoading(true);
+    const userMsg: ChatMsg = {
+      role: 'user',
+      content: prompt,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    setMessages((prev) => [...prev, userMsg]);
+    setInputMessage('');
+    setIsLoading(true);
 
     try {
-      const data = await api.aiChat({
-        message: query,
-        conversationId,
-      });
-
-      if (data.conversationId) setConversationId(data.conversationId);
-
+      const res = await api.aiChat(prompt, conversationId);
+      if (res.conversationId) setConversationId(res.conversationId);
       setMessages((prev) => [
         ...prev,
         {
           role: 'assistant',
-          content: data.message,
-          requiresConfirmation: data.requiresConfirmation,
-          pendingAction: data.pendingAction,
+          content: res.message,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          writingStyle,
         },
       ]);
     } catch (err: any) {
-      const isAuth =
-        err.message?.includes('expired') ||
-        err.message?.includes('session') ||
-        err.message?.includes('401') ||
-        err.message?.includes('token');
       setMessages((prev) => [
         ...prev,
         {
           role: 'assistant',
-          content: isAuth
-            ? `**Session Expired**: Your login session has timed out or is invalid. Please log in again to continue.`
-            : `Error: ${err.message}`,
+          content: `Sorry, an error occurred: ${err.message || 'Processing failed.'}`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         },
       ]);
     } finally {
-      setIsChatLoading(false);
+      setIsLoading(false);
     }
   };
 
-  const handleConfirmAction = async (action: any) => {
-    setIsChatLoading(true);
-    try {
-      const data = await api.aiChat({
-        conversationId,
-        confirmedAction: action,
-      });
-      setMessages((prev) => [...prev, { role: 'assistant', content: data.message }]);
-    } catch (err: any) {
-      setMessages((prev) => [...prev, { role: 'assistant', content: `Error: ${err.message}` }]);
-    } finally {
-      setIsChatLoading(false);
-    }
-  };
-
-  const handleNewThread = () => {
+  const handleStartNewThread = () => {
     setMessages([]);
     setConversationId(undefined);
-    setInput('');
-    setEditingIndex(null);
-    setSearchQuery('');
+    setInputMessage('');
   };
 
-  const canManageAutomations =
-    user?.roleName === 'Administrator' ||
-    user?.roleName === 'HR Officer' ||
-    user?.roleName === 'Management';
+  const handleToggleAutomation = async (id: number, current: boolean) => {
+    try {
+      await api.toggleAiAutomation(id, !current);
+      setAutomations((prev) =>
+        prev.map((a) => (a.id === id ? { ...a, isActive: !current } : a))
+      );
+    } catch (e) {
+      console.error('Toggle automation error:', e);
+    }
+  };
 
-  // Filter messages if search query is present
-  const displayedMessages = searchQuery.trim()
-    ? messages.filter((m) =>
-        m.content.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : messages;
+  const handleRunAutomation = async (id: number) => {
+    setRunningTaskId(id);
+    try {
+      const res = await api.runAiAutomation(id);
+      alert(`Automation completed: ${res.summary}`);
+      loadAutomations();
+    } catch (e: any) {
+      alert(`Execution failed: ${e.message || 'Error'}`);
+    } finally {
+      setRunningTaskId(null);
+    }
+  };
+
+  // Example starter cards inspired by the reference design
+  const starterCards = [
+    {
+      icon: User,
+      title: 'Late Arrivals',
+      description: 'Who checked in after the 08:30 AM cutoff today?',
+      prompt: 'Who arrived after 08:30:00 AM today? Show employee codes, arrival times, and department names.',
+    },
+    {
+      icon: Mail,
+      title: 'Staff Notice',
+      description: 'Draft attendance reminder for absent staff',
+      prompt: 'Draft an official corporate HR notification for employees who were absent without approved leave today.',
+    },
+    {
+      icon: MessageSquare,
+      title: 'NASSIT & PAYE',
+      description: 'Statutory pension & tax brackets summary',
+      prompt: 'Explain official Sierra Leone statutory payroll rules: NASSIT 5%/10% and progressive PAYE tax brackets.',
+    },
+    {
+      icon: Code,
+      title: 'Audit Check',
+      description: 'Scan payroll records for calculation anomalies',
+      prompt: 'Perform an audit on recent attendance and payroll records for excessive overtime or negative salary anomalies.',
+    },
+  ];
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Top Header & Navigation Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
-        {/* Model Badge & Title */}
+      {/* ---------------------------------------------------- */}
+      {/* Top Header Bar (Clean Minimalist Design)             */}
+      {/* ---------------------------------------------------- */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800/80 pb-4">
         <div className="flex items-center space-x-3">
-          <div className="flex items-center space-x-2">
-            <span className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800/80 text-xs font-bold text-purple-700 dark:text-purple-300">
-              <img src="/apex-copilot-logo.png" alt="Apex Copilot" className="h-4 w-4 rounded-full object-cover ring-1 ring-purple-500/40" />
-              <span>Apex Copilot 2.5</span>
-            </span>
-            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-              Enterprise Intelligence
-            </span>
+          <AIAssistantLogo size="md" withGlow={true} animated={true} />
+          <div>
+            <div className="flex items-center space-x-2">
+              <h1 className="text-base sm:text-lg font-bold tracking-tight text-slate-900 dark:text-white">
+                Apex AI Copilot
+              </h1>
+              <span className="inline-flex items-center rounded-full bg-purple-500/10 px-2 py-0.5 text-[10px] font-semibold text-purple-600 dark:text-purple-300 border border-purple-500/20">
+                Enterprise
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Enterprise HR & Payroll Assistant
+            </p>
           </div>
         </div>
 
-        {/* Global Controls: Search, Hub Tabs, New Thread */}
+        {/* Action Controls & Tab Switcher */}
         <div className="flex flex-wrap items-center gap-2">
-          {activeTab === 'copilot' && (
-            <>
-              {isSearchOpen ? (
-                <div className="flex items-center space-x-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-1 text-xs">
-                  <Search className="h-3.5 w-3.5 text-slate-400" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search thread..."
-                    className="w-32 sm:w-44 bg-transparent border-0 focus:outline-none text-xs text-slate-900 dark:text-white"
-                    autoFocus
-                  />
-                  <button
-                    onClick={() => {
-                      setSearchQuery('');
-                      setIsSearchOpen(false);
-                    }}
-                    className="text-slate-400 hover:text-slate-600"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setIsSearchOpen(true)}
-                  className="flex items-center space-x-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/80 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/60 transition shadow-2xs"
-                  title="Search conversation"
-                >
-                  <Search className="h-3.5 w-3.5 text-slate-400" />
-                  <span className="hidden sm:inline">Search thread</span>
-                </button>
-              )}
-
-              {/* + New Thread Button (Inspired by Inspiration UI) */}
-              <button
-                onClick={handleNewThread}
-                className="flex items-center space-x-1.5 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-3.5 py-1.5 text-xs font-bold hover:bg-slate-800 dark:hover:bg-slate-100 transition shadow-xs"
-                title="Start a clean new conversation thread"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                <span>New Thread</span>
-              </button>
-            </>
-          )}
-
-          {/* Tab Switcher */}
-          <div className="flex rounded-xl bg-slate-100 dark:bg-slate-800 p-1 text-xs ml-1">
-            <button
-              onClick={() => setActiveTab('copilot')}
-              className={`flex items-center space-x-1.5 rounded-lg px-3 py-1 font-semibold transition ${
-                activeTab === 'copilot'
-                  ? 'bg-white dark:bg-slate-700 text-purple-600 dark:text-white shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <Bot className="h-3.5 w-3.5" />
-              <span>Copilot</span>
-            </button>
-
-            {canManageAutomations && (
-              <button
-                onClick={() => setActiveTab('automations')}
-                className={`flex items-center space-x-1.5 rounded-lg px-3 py-1 font-semibold transition ${
-                  activeTab === 'automations'
-                    ? 'bg-white dark:bg-slate-700 text-purple-600 dark:text-white shadow-xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                <Zap className="h-3.5 w-3.5" />
-                <span>Automations</span>
-              </button>
-            )}
-
-            <button
-              onClick={() => setActiveTab('anomalies')}
-              className={`flex items-center space-x-1.5 rounded-lg px-3 py-1 font-semibold transition ${
-                activeTab === 'anomalies'
-                  ? 'bg-white dark:bg-slate-700 text-purple-600 dark:text-white shadow-xs'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <ShieldAlert className="h-3.5 w-3.5" />
-              <span>Anomalies</span>
-            </button>
+          {/* Search bar */}
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search thread..."
+              className="w-36 sm:w-44 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-1.5 pl-8 pr-3 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-purple-500"
+            />
           </div>
+
+          {/* Share Thread Button */}
+          <button
+            type="button"
+            onClick={() => {
+              if (messages.length > 0) {
+                const fullText = messages.map((m) => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n');
+                shareAiResponse('Apex AI Conversation Thread', fullText);
+              } else {
+                alert('No conversation history to share.');
+              }
+            }}
+            className="inline-flex items-center space-x-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition active:scale-95"
+            title="Share thread"
+          >
+            <Share2 className="h-3.5 w-3.5 text-slate-400" />
+            <span className="hidden sm:inline">Share</span>
+          </button>
+
+          {/* New Thread Button */}
+          <button
+            type="button"
+            onClick={handleStartNewThread}
+            className="inline-flex items-center space-x-1.5 rounded-xl bg-slate-900 dark:bg-white px-3.5 py-1.5 text-xs font-bold text-white dark:text-slate-950 shadow-sm hover:opacity-90 transition active:scale-95"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span>New Thread</span>
+          </button>
         </div>
       </div>
 
-      {/* =================================================== */}
-      {/* TAB 1: COPILOT WORKSPACE (INSPIRATION DESIGN)      */}
-      {/* =================================================== */}
-      {activeTab === 'copilot' && (
-        <div className="w-full">
-          {/* STATE A: INSPIRATION HERO VIEW (When no messages) */}
-          {messages.length === 0 ? (
-            <div className="py-6 sm:py-10 flex flex-col items-center justify-center animate-in fade-in duration-300">
-              {/* 1. 3D Iridescent Fluid Orb Logo */}
-              <div className="relative my-4 flex items-center justify-center">
-                {/* Outer pulsing color haze */}
-                <div className="absolute h-32 w-32 rounded-full bg-gradient-to-tr from-fuchsia-600 via-purple-600 to-indigo-600 blur-2xl opacity-60 animate-pulse" />
-                <div className="absolute h-24 w-24 rounded-full bg-gradient-to-bl from-pink-500 via-purple-500 to-cyan-500 blur-lg opacity-70" />
-
-                {/* The 3D iridescent gem container with Logo */}
-                <div className="relative h-24 w-24 rounded-full bg-gradient-to-tr from-indigo-700 via-purple-600 to-fuchsia-400 p-0.5 shadow-2xl shadow-purple-500/50 transform hover:scale-105 transition-transform duration-300">
-                  <img
-                    src="/apex-copilot-logo.png"
-                    alt="Apex Copilot"
-                    className="h-full w-full rounded-full object-cover shadow-inner"
-                  />
-                </div>
-              </div>
-
-              {/* 2. Personalized Time-of-Day Headline */}
-              <div className="text-center space-y-1.5 mt-2">
-                <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-slate-900 dark:text-white">
-                  {getGreeting()}, <span className="font-bold">{displayName}</span>
-                </h2>
-                <p className="text-xl sm:text-2xl font-normal text-slate-600 dark:text-slate-300">
-                  What insights do you need for your{' '}
-                  <span className="font-semibold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 via-fuchsia-500 to-indigo-600 dark:from-purple-400 dark:to-indigo-300">
-                    workforce today ?
+      {/* Tab Navigation Pill Bar with Smooth Sliding Spring Indicator */}
+      <div className="flex items-center space-x-1.5 border-b border-slate-200 dark:border-slate-800 pb-2.5 overflow-x-auto no-scrollbar">
+        {[
+          { id: 'chat', label: 'Copilot Chat', icon: Bot, badge: 'Live AI' },
+          { id: 'automations', label: 'Task Automations', icon: Zap, badge: `${automations.length || 3}` },
+          { id: 'anomalies', label: 'Anomaly Detection', icon: AlertTriangle, badge: anomalies.length ? `${anomalies.length}` : null, badgeColor: 'bg-rose-500 text-white' },
+          { id: 'knowledge', label: 'Knowledge Hub', icon: BookOpen, badge: null },
+        ].map((tab) => {
+          const isActive = activeTab === tab.id;
+          const IconComp = tab.icon;
+          return (
+            <motion.button
+              key={tab.id}
+              type="button"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`relative flex items-center space-x-2 rounded-xl px-4 py-2 text-xs font-bold transition-colors select-none cursor-pointer ${isActive
+                ? 'text-white'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/80 dark:hover:bg-slate-800/60'
+                }`}
+            >
+              {isActive && (
+                <motion.div
+                  layoutId="aiHubActiveTab"
+                  className="absolute inset-0 rounded-xl bg-gradient-to-r from-purple-600 via-fuchsia-600 to-indigo-600 shadow-md shadow-purple-600/35 border border-purple-400/30"
+                  transition={{ type: 'spring', stiffness: 450, damping: 32 }}
+                />
+              )}
+              <span className="relative z-10 flex items-center space-x-2">
+                <IconComp className={`h-4 w-4 transition-transform duration-200 ${isActive ? 'scale-110' : ''}`} />
+                <span>{tab.label}</span>
+                {tab.badge && (
+                  <span
+                    className={`rounded-full px-1.5 py-0.5 text-[9px] font-black tracking-tight ${tab.badgeColor || (isActive ? 'bg-white/25 text-white' : 'bg-purple-100 text-purple-700 dark:bg-purple-950/80 dark:text-purple-300')
+                      }`}
+                  >
+                    {tab.badge}
                   </span>
-                </p>
-              </div>
+                )}
+              </span>
+            </motion.button>
+          );
+        })}
+      </div>
 
-              {/* 3. Hero Elevated Input Box */}
-              <div className="w-full max-w-2xl mx-auto mt-7 rounded-2xl border border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-800/90 shadow-xl shadow-slate-200/50 dark:shadow-none p-3.5 sm:p-4 transition-all focus-within:border-purple-500/80 focus-within:ring-2 focus-within:ring-purple-500/20">
-                <div className="flex items-start gap-2.5">
-                  <Sparkles className="h-4 w-4 text-purple-600 dark:text-purple-400 mt-1 shrink-0" />
-                  <textarea
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSendMessage();
-                      }
-                    }}
-                    rows={2}
-                    placeholder="Ask Apex Copilot an attendance question, audit timesheets, or request a payroll ledger..."
-                    className="w-full bg-transparent border-0 resize-none text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none leading-relaxed"
-                  />
+      {/* ---------------------------------------------------- */}
+      {/* Dynamic Animated Tab Viewports                       */}
+      {/* ---------------------------------------------------- */}
+      <AnimatePresence mode="wait">
+        {/* ---------------------------------------------------- */}
+        {/* 1. COPILOT CHAT TAB (Design Inspiration Implemented) */}
+        {/* ---------------------------------------------------- */}
+        {activeTab === 'chat' && (
+          <motion.div
+            key="chat"
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
+            className="flex flex-col min-h-[620px]"
+          >
+            {/* If no messages yet, display the centered Hero View */}
+            {messages.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center py-8 sm:py-14 px-4 text-center">
+                {/* Centered Glowing 3D Crystal Orb Logo with Multi-Layered Premium Animation */}
+                <div className="relative mb-8 flex flex-col items-center justify-center">
+                  {/* 1. Ambient Cosmic Glow Ring */}
+                  <div className="absolute -inset-10 rounded-full bg-gradient-to-tr from-purple-600/35 via-fuchsia-500/25 to-indigo-600/30 blur-2xl animate-orb-glow pointer-events-none" />
+
+                  {/* 2. Slow Rotating Outer Dashed Orbital Ring */}
+                  <div className="absolute -inset-4 rounded-full border border-dashed border-purple-400/50 dark:border-purple-400/40 animate-orb-ring-spin pointer-events-none" />
+
+                  {/* 3. Counter-Rotating Radiant Gradient Halo Ring */}
+                  <div className="absolute -inset-7 rounded-full border border-purple-500/20 dark:border-fuchsia-500/20 border-t-purple-400 border-b-fuchsia-400 animate-orb-ring-spin-reverse pointer-events-none" />
+
+                  {/* 4. Core Levitation Capsule (Silky Smooth Floating Physics) */}
+                  <motion.div
+                    className="relative z-10 animate-orb-levitate cursor-pointer group"
+                    whileHover={{ scale: 1.08 }}
+                    whileTap={{ scale: 0.96 }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                  >
+                    <AIAssistantLogo size="hero" withGlow={true} animated={false} />
+                  </motion.div>
+
+                  {/* 5. Realistic Dynamic Contact Shadow beneath the Floating Orb */}
+                  <div className="w-20 sm:w-24 h-3.5 rounded-full bg-purple-950/25 dark:bg-purple-950/70 blur-md mt-2.5 animate-orb-shadow pointer-events-none" />
                 </div>
 
-                <div className="flex items-center justify-between pt-3 mt-2 border-t border-slate-100 dark:border-slate-700/60">
-                  <div className="flex items-center space-x-2">
-                    <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-700/70 text-[11px] font-medium text-slate-600 dark:text-slate-300">
-                      <ShieldCheck className="h-3 w-3 text-purple-600 dark:text-purple-400" />
-                      <span>{user?.roleName || 'Authorized'} Scope</span>
+                {/* Centered Greeting with Staggered Kinetic Entrance */}
+                <motion.h2
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+                  className="text-2xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white"
+                >
+                  {getGreetingTime()}, {userDisplayName}
+                </motion.h2>
+
+                {/* Sub-headline with Shimmering Gradient Flow Animation */}
+                <motion.p
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.65, delay: 0.18, ease: [0.22, 1, 0.36, 1] }}
+                  className="text-2xl sm:text-4xl font-extrabold tracking-tight mt-1 text-slate-800 dark:text-slate-200"
+                >
+                  What's on{' '}
+                  <span className="relative inline-block">
+                    <span className="bg-gradient-to-r from-purple-600 via-fuchsia-500 via-pink-400 to-indigo-500 dark:from-purple-400 dark:via-fuchsia-300 dark:via-pink-400 dark:to-indigo-300 bg-clip-text text-transparent animate-text-gradient drop-shadow-[0_0_16px_rgba(192,38,211,0.35)]">
+                      your mind ?
                     </span>
-                    <span className="hidden sm:inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                      <Activity className="h-3 w-3 text-emerald-500" />
-                      <span>PostgreSQL Grounded</span>
-                    </span>
-                  </div>
+                    {/* Subtle expanding laser underline */}
+                    <motion.span
+                      initial={{ scaleX: 0 }}
+                      animate={{ scaleX: 1 }}
+                      transition={{ duration: 0.8, delay: 0.5, ease: 'easeOut' }}
+                      className="absolute -bottom-1 left-0 right-0 h-[2px] rounded-full bg-gradient-to-r from-transparent via-fuchsia-500 to-transparent opacity-80"
+                    />
+                  </span>
+                </motion.p>
 
-                  <div className="flex items-center space-x-2">
-                    <button
-                      type="button"
-                      onClick={() => handleSendMessage()}
-                      disabled={!input.trim() || isChatLoading}
-                      className="h-8 w-8 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-slate-900 dark:disabled:hover:bg-white transition flex items-center justify-center shadow-xs cursor-pointer"
-                      title="Send query (Enter)"
-                    >
-                      <ArrowUp className="h-4 w-4 font-bold" />
-                    </button>
-                  </div>
-                </div>
-              </div>
+                {/* Floating Prompt Card Container with Ambient Aurora Glow */}
+                <motion.div
+                  initial={{ opacity: 0, y: 22 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.55, delay: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                  className="w-full max-w-2xl mt-8 relative group"
+                >
+                  {/* Ambient breathing aura behind the prompt card */}
+                  <div className="absolute -inset-1 rounded-3xl bg-gradient-to-r from-purple-600/30 via-fuchsia-500/20 to-indigo-600/30 blur-xl opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-500 pointer-events-none" />
 
-              {/* 4. Suggested Query Cards Grid (Tailored to Apex Enterprise) */}
-              <div className="w-full max-w-4xl mx-auto mt-8">
-                <p className="text-[11px] font-bold tracking-wider text-slate-400 dark:text-slate-500 uppercase text-center mb-4">
-                  GET STARTED WITH A WORKFORCE QUERY BELOW
-                </p>
+                  <div className="relative rounded-2xl border border-purple-500/25 dark:border-slate-700/80 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl p-4 sm:p-5 shadow-xl shadow-purple-950/15 transition-all duration-300 focus-within:border-purple-500 focus-within:ring-4 focus-within:ring-purple-500/20 focus-within:shadow-2xl focus-within:shadow-purple-950/25">
+                    <div>
+                      <textarea
+                        rows={2}
+                        value={inputMessage}
+                        onChange={(e) => setInputMessage(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handleSendMessage();
+                          }
+                        }}
+                        placeholder="Message Apex AI... (e.g. 'Who is late today?')"
+                        className="w-full resize-none border-none bg-transparent text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-0"
+                      />
+                    </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-                  {[
-                    {
-                      title: "Today's Tardiness Report",
-                      desc: 'List employees arriving past 08:00 AM shift start with delay duration',
-                      query: 'Who reported late today and what is their delay time?',
-                      icon: Clock,
-                    },
-                    {
-                      title: 'Payroll Summary Statement',
-                      desc: "Summarize this month's gross salaries, overtime earnings, and net payout",
-                      query: 'Show current payroll distribution and net disbursement summary',
-                      icon: DollarSign,
-                    },
-                    {
-                      title: 'Apex Corporate Profile',
-                      desc: 'Explain Apex Enterprise SL Ltd services and smart QR attendance mechanics',
-                      query: 'Tell me about Apex Enterprise SL Ltd, its services, and how the system works',
-                      icon: Building2,
-                    },
-                    {
-                      title: 'Anomaly & Fraud Scan',
-                      desc: 'Run automated audit for check-in anomalies, duplicate scans, and ghost records',
-                      query: 'Check for attendance anomalies and suspicious scan patterns',
-                      icon: ShieldAlert,
-                    },
-                  ].map((card, idx) => {
-                    const Icon = card.icon;
-                    return (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => handleSendMessage(card.query)}
-                        className="group text-left flex flex-col justify-between p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/70 hover:border-purple-400 dark:hover:border-purple-500 hover:shadow-md transition-all duration-200 cursor-pointer h-36"
-                      >
-                        <div>
-                          <p className="text-xs font-bold text-slate-800 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
-                            {card.title}
-                          </p>
-                          <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 mt-1 leading-relaxed">
-                            {card.desc}
-                          </p>
+                    {/* Bottom Controls Pill Bar */}
+                    <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center space-x-2">
+                        {/* Attach Pill */}
+                        <motion.button
+                          type="button"
+                          whileHover={{ scale: 1.04 }}
+                          whileTap={{ scale: 0.96 }}
+                          onClick={() => alert('Attachments supported via attendance/payroll audit tools.')}
+                          className="inline-flex items-center space-x-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                        >
+                          <Paperclip className="h-3.5 w-3.5 text-slate-400" />
+                          <span>Attach</span>
+                        </motion.button>
+
+                        {/* Writing Styles Pill Dropdown */}
+                        <div className="relative">
+                          <motion.button
+                            type="button"
+                            whileHover={{ scale: 1.04 }}
+                            whileTap={{ scale: 0.96 }}
+                            onClick={() => setIsStyleDropdownOpen(!isStyleDropdownOpen)}
+                            className="inline-flex items-center space-x-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                          >
+                            <span>Style: {writingStyle}</span>
+                            <ChevronDown className={`h-3 w-3 text-slate-400 transition-transform duration-200 ${isStyleDropdownOpen ? 'rotate-180 text-purple-500' : ''}`} />
+                          </motion.button>
+
+                          <AnimatePresence>
+                            {isStyleDropdownOpen && (
+                              <motion.div
+                                initial={{ opacity: 0, y: -8, scale: 0.95 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: -8, scale: 0.95 }}
+                                transition={{ duration: 0.18, ease: 'easeOut' }}
+                                className="absolute left-0 mt-1.5 w-44 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl p-1.5 shadow-2xl z-20"
+                              >
+                                {(['Statutory', 'Executive', 'Analytical', 'Concise'] as const).map((style) => (
+                                  <button
+                                    key={style}
+                                    type="button"
+                                    onClick={() => {
+                                      setWritingStyle(style);
+                                      setIsStyleDropdownOpen(false);
+                                    }}
+                                    className={`w-full text-left px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${writingStyle === style
+                                      ? 'bg-purple-600 text-white shadow-xs font-bold'
+                                      : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                      }`}
+                                  >
+                                    {style} Mode
+                                  </button>
+                                ))}
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                         </div>
-                        <div className="pt-2">
-                          <div className="h-7 w-7 rounded-lg bg-slate-100 dark:bg-slate-700/60 flex items-center justify-center text-slate-600 dark:text-slate-300 group-hover:bg-purple-50 dark:group-hover:bg-purple-950/60 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
-                            <Icon className="h-3.5 w-3.5" />
+                      </div>
+
+                      {/* Right side: Caption toggle & Send Arrow Button */}
+                      <div className="flex items-center space-x-3">
+                        <label className="inline-flex items-center space-x-1.5 cursor-pointer text-xs text-slate-500 dark:text-slate-400 select-none">
+                          <input
+                            type="checkbox"
+                            checked={isCaptionActive}
+                            onChange={(e) => setIsCaptionActive(e.target.checked)}
+                            className="sr-only"
+                          />
+                          <div
+                            className={`h-4 w-7 rounded-full transition-colors relative ${isCaptionActive ? 'bg-purple-600' : 'bg-slate-300 dark:bg-slate-700'
+                              }`}
+                          >
+                            <div
+                              className={`h-3 w-3 rounded-full bg-white transition-transform absolute top-0.5 left-0.5 ${isCaptionActive ? 'translate-x-3' : ''
+                                }`}
+                            />
                           </div>
+                          <span className="text-[11px] font-medium">Compliance</span>
+                        </label>
+
+                        <motion.button
+                          type="button"
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.92 }}
+                          onClick={() => handleSendMessage()}
+                          disabled={!inputMessage.trim() || isLoading}
+                          className="flex h-8.5 w-8.5 items-center justify-center rounded-xl bg-slate-950 dark:bg-purple-600 text-white shadow-md shadow-purple-600/30 hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+                          title="Send Prompt"
+                        >
+                          <ArrowUp className="h-4 w-4" />
+                        </motion.button>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+
+                {/* "GET STARTED WITH AN EXAMPLE BELOW" Section */}
+                <motion.div
+                  initial={{ opacity: 0, y: 22 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: 0.38, ease: [0.22, 1, 0.36, 1] }}
+                  className="w-full max-w-5xl mt-10 text-left"
+                >
+                  <div className="flex items-center space-x-2 mb-3 px-1">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-500" />
+                    </span>
+                    <p className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                      Get started with an example below
+                    </p>
+                  </div>
+
+                  {/* 4 Interactive Starter Example Cards in one straight horizontal line */}
+                  <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    {[
+                      {
+                        title: 'Grace Period Rule',
+                        description: 'What is the standard Sierra Leone shift grace period at Apex HRMS?',
+                        prompt: 'Explain the shift grace period policy and late penalty threshold under Sierra Leone labour rules.',
+                        icon: Clock,
+                      },
+                      {
+                        title: 'NASSIT Breakdown',
+                        description: 'Calculate employee vs employer NASSIT deductions for SLE 10,000.',
+                        prompt: 'Break down the 5% employee and 10% employer NASSIT pension contributions for a gross salary of SLE 10,000.',
+                        icon: FileSpreadsheet,
+                      },
+                      {
+                        title: 'Overtime Multipliers',
+                        description: 'Show how weekday 1.5x and holiday 2.0x rates are calculated.',
+                        prompt: 'What are the legal overtime rates for normal working weekdays vs public holidays in Sierra Leone?',
+                        icon: Zap,
+                      },
+                      {
+                        title: 'Smart QR Cards',
+                        description: 'How do CR80 encrypted NFC/QR employee ID badges work?',
+                        prompt: 'Explain the CR80 ID-1 standard smart employee badge format and how QR codes prevent attendance fraud.',
+                        icon: Sparkles,
+                      },
+                    ].map((card, idx) => {
+                      const IconComp = card.icon;
+                      return (
+                        <motion.button
+                          key={idx}
+                          type="button"
+                          whileHover={{ y: -4, scale: 1.02 }}
+                          whileTap={{ scale: 0.97 }}
+                          transition={{ type: 'spring', stiffness: 400, damping: 24 }}
+                          onClick={() => handleSendMessage(card.prompt)}
+                          className="flex flex-col justify-between h-full min-h-[135px] rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md p-4 text-left shadow-xs hover:border-purple-500/60 hover:shadow-lg hover:shadow-purple-950/10 transition-all duration-300 group cursor-pointer"
+                        >
+                          <div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400 block mb-1">
+                              {card.title}
+                            </span>
+                            <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 group-hover:text-purple-600 dark:group-hover:text-purple-300 transition-colors leading-snug">
+                              {card.description}
+                            </p>
+                          </div>
+                          <div className="mt-3 flex items-center justify-between text-slate-400 group-hover:text-purple-500 transition-colors">
+                            <div className="p-1.5 rounded-xl bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 group-hover:scale-110 transition-transform">
+                              <IconComp className="h-4 w-4" />
+                            </div>
+                            <ArrowUpRight className="h-3.5 w-3.5 opacity-0 -translate-x-1 translate-y-1 group-hover:opacity-100 group-hover:translate-x-0 group-hover:translate-y-0 transition-all" />
+                          </div>
+                        </motion.button>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              </div>
+            ) : (
+              /* Active Message Stream View */
+              <div className="flex flex-col rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm h-[640px] overflow-hidden">
+                {/* Message List */}
+                <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+                  {messages.map((m, idx) => {
+                    const isUser = m.role === 'user';
+                    return (
+                      <motion.div
+                        key={idx}
+                        initial={{ opacity: 0, y: 14, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+                        className={`flex items-start gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}
+                      >
+                        {/* Avatar with User Photo on user messages */}
+                        {isUser ? (
+                          <UserAvatar size="sm" className="mt-1 shadow-sm" />
+                        ) : (
+                          <AIAssistantLogo size="sm" withGlow={false} className="mt-1" />
+                        )}
+
+                        {/* Message Bubble Card */}
+                        <div
+                          className={`max-w-[85%] sm:max-w-[80%] rounded-2xl p-4 text-xs sm:text-sm leading-relaxed shadow-xs ${isUser
+                            ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-tr-xs shadow-md shadow-purple-600/20'
+                            : 'bg-slate-50 dark:bg-slate-800/90 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700/80 rounded-tl-xs'
+                            }`}
+                        >
+                          {/* Header tag for AI message */}
+                          {!isUser && (
+                            <div className="flex items-center justify-between gap-2 mb-2 pb-1.5 border-b border-slate-200/60 dark:border-slate-700/60 text-[11px] text-slate-400">
+                              <span className="font-semibold text-purple-600 dark:text-purple-300">
+                                Apex AI Copilot
+                              </span>
+                              {m.timestamp && <span>{m.timestamp}</span>}
+                            </div>
+                          )}
+
+                          {/* Rich formatted AI text, headings, tables, and lists */}
+                          <AIMarkdownRenderer content={m.content} isUser={isUser} />
+
+                          {/* Action Toolbar on AI response: Full View, PDF, Excel, Share */}
+                          {!isUser && (
+                            <AIMessageActionToolbar
+                              content={m.content}
+                              title="Apex AI Copilot Intelligence Report"
+                              username={user?.username}
+                              compact={false}
+                              onOpenFullView={() =>
+                                setFullViewModal({
+                                  isOpen: true,
+                                  title: 'Apex AI Copilot Intelligence Report',
+                                  content: m.content,
+                                  timestamp: m.timestamp,
+                                })
+                              }
+                            />
+                          )}
                         </div>
-                      </button>
+                      </motion.div>
                     );
                   })}
-                </div>
-              </div>
-            </div>
-          ) : (
-            /* STATE B: ACTIVE CHAT CANVAS (Modern Feed + Pinned Hero Input) */
-            <div className="flex flex-col h-[700px] rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden animate-in fade-in duration-200">
-              {/* Thread Info Strip */}
-              <div className="px-5 py-2.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/70 dark:bg-slate-800/40 text-xs">
-                <div className="flex items-center space-x-2">
-                  <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="font-semibold text-slate-700 dark:text-slate-300">
-                    Active Intelligence Session
-                  </span>
-                  <span className="text-slate-400">•</span>
-                  <span className="text-slate-500 dark:text-slate-400 text-[11px]">
-                    {messages.length} message{messages.length === 1 ? '' : 's'}
-                  </span>
+
+                  <AnimatePresence>
+                    {isLoading && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 12, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        transition={{ duration: 0.25 }}
+                        className="relative flex items-center space-x-3 text-xs text-purple-700 dark:text-purple-300 py-3 px-4 bg-gradient-to-r from-purple-500/10 via-fuchsia-500/10 to-indigo-500/10 rounded-2xl w-fit border border-purple-400/30 dark:border-purple-500/30 shadow-md shadow-purple-950/5 overflow-hidden"
+                      >
+                        <span className="absolute inset-0 bg-gradient-to-r from-transparent via-purple-500/15 to-transparent animate-shimmer pointer-events-none" />
+                        <div className="relative flex items-center justify-center">
+                          <AIAssistantLogo size="xs" withGlow={false} />
+                          <span className="absolute -inset-1 rounded-full bg-purple-500/40 animate-ping opacity-50 pointer-events-none" />
+                        </div>
+                        <div className="flex items-center space-x-2 relative z-10">
+                          <span className="font-semibold">Apex AI is analyzing workforce records & statutory rules</span>
+                          <span className="flex space-x-1">
+                            <span className="h-1.5 w-1.5 rounded-full bg-purple-500 animate-bounce [animation-delay:-0.3s]" />
+                            <span className="h-1.5 w-1.5 rounded-full bg-fuchsia-500 animate-bounce [animation-delay:-0.15s]" />
+                            <span className="h-1.5 w-1.5 rounded-full bg-indigo-500 animate-bounce" />
+                          </span>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                  <div ref={messagesEndRef} />
                 </div>
 
+                {/* Bottom Fixed Prompt Input Card */}
+                <div className="border-t border-slate-200 dark:border-slate-800 p-3.5 bg-slate-50 dark:bg-slate-950/80">
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleSendMessage();
+                    }}
+                    className="flex items-center space-x-2"
+                  >
+                    <input
+                      type="text"
+                      value={inputMessage}
+                      onChange={(e) => setInputMessage(e.target.value)}
+                      placeholder="Message Apex AI..."
+                      disabled={isLoading}
+                      className="flex-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2.5 text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-purple-500 focus:outline-hidden focus:ring-1 focus:ring-purple-500"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!inputMessage.trim() || isLoading}
+                      className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-600 text-white shadow-md shadow-purple-600/30 hover:bg-purple-700 disabled:opacity-50 transition shrink-0 active:scale-95 cursor-pointer"
+                      title="Send message"
+                    >
+                      <Send className="h-4 w-4" />
+                    </button>
+                  </form>
+                </div>
+              </div>
+            )}
+          </motion.div>
+        )}
+
+        {/* ---------------------------------------------------- */}
+        {/* 2. TASK AUTOMATIONS TAB                              */}
+        {/* ---------------------------------------------------- */}
+        {activeTab === 'automations' && (
+          <motion.div
+            key="automations"
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
+            className="space-y-6"
+          >
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 sm:p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Zap className="h-4 w-4 text-purple-500" />
+                    Scheduled Automated Tasks
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Autonomous background jobs configured to scan attendance, enforce grace periods, and audit payroll compliance.
+                  </p>
+                </div>
                 <button
                   type="button"
-                  onClick={handleNewThread}
-                  className="flex items-center space-x-1 text-purple-600 dark:text-purple-400 hover:underline font-semibold text-[11px]"
+                  onClick={loadAutomations}
+                  className="flex items-center space-x-1.5 rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition active:scale-95 cursor-pointer"
                 >
-                  <Plus className="h-3 w-3" />
-                  <span>Start New Thread</span>
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  <span>Refresh</span>
                 </button>
               </div>
 
-              {/* Chat Message Stream */}
-              <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
-                {displayedMessages.map((msg, idx) => (
-                  <div
-                    key={idx}
-                    className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {automations.map((auto) => (
+                  <motion.div
+                    key={auto.id}
+                    whileHover={{ y: -4, scale: 1.01 }}
+                    transition={{ type: 'spring', stiffness: 380, damping: 24 }}
+                    className="flex flex-col justify-between rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 p-4 transition-colors hover:border-purple-500/50 hover:shadow-lg hover:shadow-purple-950/10 dark:hover:shadow-purple-950/40"
                   >
-                    {msg.role === 'assistant' && (
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl overflow-hidden border border-purple-400/40 shadow-xs">
-                        <img src="/apex-copilot-logo.png" alt="Apex Copilot" className="h-full w-full object-cover" />
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-bold text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
+                          <Clock className="h-3.5 w-3.5 text-purple-500" />
+                          {auto.name}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleAutomation(auto.id, auto.isActive)}
+                          className={`text-[10px] font-semibold px-2 py-0.5 rounded-full transition cursor-pointer ${auto.isActive
+                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                            : 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                            }`}
+                        >
+                          {auto.isActive ? 'Active' : 'Disabled'}
+                        </button>
                       </div>
-                    )}
-                    <div
-                      className={`max-w-[85%] rounded-2xl p-4 text-xs leading-relaxed ${
-                        msg.role === 'user'
-                          ? 'bg-purple-600 text-white rounded-tr-xs shadow-xs'
-                          : 'bg-slate-100 dark:bg-slate-800/90 text-slate-900 dark:text-slate-100 rounded-tl-xs border border-slate-200/80 dark:border-slate-700/80 shadow-2xs'
-                      }`}
-                    >
-                      {/* Inline Editing Mode */}
-                      {editingIndex === idx && msg.role === 'assistant' ? (
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between pb-1 border-b border-slate-200 dark:border-slate-700">
-                            <span className="text-[11px] font-bold text-purple-600 dark:text-purple-400">
-                              Editing AI Response
-                            </span>
-                            <span className="text-[10px] text-slate-400">
-                              Markdown syntax enabled
-                            </span>
-                          </div>
-                          <textarea
-                            value={editingText}
-                            onChange={(e) => setEditingText(e.target.value)}
-                            rows={Math.min(10, Math.max(4, editingText.split('\n').length))}
-                            className="w-full rounded-lg border border-purple-400 dark:border-purple-600 bg-white dark:bg-slate-900 p-2.5 text-xs text-slate-900 dark:text-white font-mono focus:outline-none focus:ring-1 focus:ring-purple-500"
-                          />
-                          <div className="flex items-center justify-end space-x-2 pt-1">
-                            <button
-                              type="button"
-                              onClick={() => setEditingIndex(null)}
-                              className="rounded-lg border border-slate-300 dark:border-slate-600 px-3 py-1 text-[11px] font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setMessages((prev) => {
-                                  const copy = [...prev];
-                                  copy[idx] = { ...copy[idx], content: editingText };
-                                  return copy;
-                                });
-                                setEditingIndex(null);
-                              }}
-                              className="rounded-lg bg-purple-600 px-3 py-1 text-[11px] font-bold text-white hover:bg-purple-700 transition shadow-xs"
-                            >
-                              Save Changes
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <>
-                          {/* Rich Structured AI Output */}
-                          <AIMessageRenderer content={msg.content} />
-
-                          {/* Response Action Bar (PDF, CSV, Copy, Edit, Share, Full View) */}
-                          {msg.role === 'assistant' && (
-                            <AIMessageActions
-                              content={msg.content}
-                              onStartEdit={() => {
-                                setEditingIndex(idx);
-                                setEditingText(msg.content);
-                              }}
-                              onFullView={() => setFullViewContent(msg.content)}
-                              onShare={() => setShareContent(msg.content)}
-                            />
-                          )}
-                        </>
-                      )}
-
-                      {/* Session Expiry Action */}
-                      {msg.role === 'assistant' &&
-                        (msg.content.includes('Session Expired') ||
-                          msg.content.includes('log in again')) && (
-                          <div className="mt-2.5 pt-2 border-t border-slate-200 dark:border-slate-700">
-                            <button
-                              type="button"
-                              onClick={() => logout()}
-                              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-semibold text-[11px] transition shadow-xs"
-                            >
-                              <LogIn className="h-3.5 w-3.5" />
-                              <span>Log In Again</span>
-                            </button>
-                          </div>
-                        )}
-
-                      {/* Confirmation Prompt */}
-                      {msg.requiresConfirmation && msg.pendingAction && (
-                        <div className="mt-3 rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 p-3 text-amber-900 dark:text-amber-200">
-                          <p className="font-bold mb-1">Confirmation Required</p>
-                          <p className="text-[11px] mb-2">{msg.pendingAction.prompt}</p>
-                          <div className="flex space-x-2">
-                            <button
-                              onClick={() => handleConfirmAction(msg.pendingAction)}
-                              className="rounded-lg bg-amber-600 px-3 py-1 text-[11px] font-bold text-white hover:bg-amber-700 cursor-pointer"
-                            >
-                              Confirm Action
-                            </button>
-                          </div>
-                        </div>
-                      )}
+                      <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed mb-3">
+                        {auto.description}
+                      </p>
                     </div>
-                    {msg.role === 'user' && (
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
-                        <User className="h-4 w-4" />
-                      </div>
+
+                    <div className="flex items-center justify-between pt-3 border-t border-slate-200/60 dark:border-slate-800 text-[11px] text-slate-400">
+                      <span>Last run: {auto.lastRunAt ? new Date(auto.lastRunAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Never'}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRunAutomation(auto.id)}
+                        disabled={runningTaskId === auto.id}
+                        className="inline-flex items-center space-x-1 rounded-lg bg-purple-600 px-2.5 py-1 text-white font-semibold hover:bg-purple-700 disabled:opacity-50 transition active:scale-95 cursor-pointer"
+                      >
+                        <Play className="h-3 w-3" />
+                        <span>{runningTaskId === auto.id ? 'Running...' : 'Run Now'}</span>
+                      </button>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+
+            {/* Execution History */}
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 sm:p-6 shadow-sm">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">
+                Recent Execution Logs
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-xs text-left">
+                  <thead className="border-b border-slate-200 dark:border-slate-800 text-slate-400 font-semibold">
+                    <tr>
+                      <th className="py-2 px-3">Execution ID</th>
+                      <th className="py-2 px-3">Triggered By</th>
+                      <th className="py-2 px-3">Status</th>
+                      <th className="py-2 px-3">Summary</th>
+                      <th className="py-2 px-3">Affected Records</th>
+                      <th className="py-2 px-3">Timestamp</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-slate-700 dark:text-slate-300">
+                    {automationHistory.slice(0, 10).map((h) => (
+                      <tr key={h.id}>
+                        <td className="py-2.5 px-3 font-mono">#{h.id}</td>
+                        <td className="py-2.5 px-3">{h.triggeredBy}</td>
+                        <td className="py-2.5 px-3">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-400 border border-emerald-500/20">
+                            <CheckCircle2 className="h-2.5 w-2.5" />
+                            {h.status}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 max-w-xs truncate">{h.summary}</td>
+                        <td className="py-2.5 px-3 font-mono">{h.affectedCount ?? 0}</td>
+                        <td className="py-2.5 px-3 text-slate-400">
+                          {new Date(h.executedAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                        </td>
+                      </tr>
+                    ))}
+                    {automationHistory.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="text-center py-6 text-slate-400">
+                          No automation execution logs recorded yet.
+                        </td>
+                      </tr>
                     )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ---------------------------------------------------- */}
+        {/* 3. ANOMALY DETECTION TAB                             */}
+        {/* ---------------------------------------------------- */}
+        {activeTab === 'anomalies' && (
+          <motion.div
+            key="anomalies"
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
+            className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 sm:p-6 shadow-sm relative overflow-hidden"
+          >
+            {/* High-tech scanning radar beam */}
+            {isScanningAnomalies && (
+              <motion.div
+                initial={{ x: '-100%' }}
+                animate={{ x: '100%' }}
+                transition={{ repeat: Infinity, duration: 1.4, ease: 'linear' }}
+                className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-purple-500 to-transparent pointer-events-none"
+              />
+            )}
+
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-500" />
+                  Live Attendance & Payroll Anomaly Scanner
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Continuously audits records for policy violations: punches past 08:30 grace period, missing checkouts, negative pay, or unapproved overtime.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={loadAnomalies}
+                disabled={isScanningAnomalies}
+                className="flex items-center space-x-1.5 rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-purple-700 disabled:opacity-50 transition active:scale-95 cursor-pointer shadow-sm shadow-purple-600/25"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${isScanningAnomalies ? 'animate-spin' : ''}`} />
+                <span>{isScanningAnomalies ? 'Scanning...' : 'Scan Now'}</span>
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {anomalies.map((anom, idx) => (
+                <motion.div
+                  key={idx}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  whileHover={{ x: 4 }}
+                  transition={{ type: 'spring', stiffness: 350, damping: 25 }}
+                  className="flex items-start justify-between rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 p-4 hover:border-amber-500/40 transition-colors"
+                >
+                  <div className="flex items-start space-x-3">
+                    <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400 mt-0.5">
+                      <AlertTriangle className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-bold text-xs text-slate-900 dark:text-white">
+                          {anom.title}
+                        </span>
+                        <span className="rounded-full bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 text-[9px] font-bold text-amber-400 uppercase">
+                          {anom.severity || 'WARNING'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                        {anom.description}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => alert(`Reviewing anomaly: ${anom.title}`)}
+                    className="rounded-lg border border-slate-200 dark:border-slate-700 px-2.5 py-1 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition shrink-0 cursor-pointer"
+                  >
+                    Review
+                  </button>
+                </motion.div>
+              ))}
+
+              {anomalies.length === 0 && !isScanningAnomalies && (
+                <div className="text-center py-12 text-slate-400">
+                  <CheckCircle2 className="h-8 w-8 text-emerald-400 mx-auto mb-2 opacity-80" />
+                  <p className="text-sm font-semibold text-slate-300">All Systems Compliant</p>
+                  <p className="text-xs text-slate-500 mt-1">
+                    No attendance, shift reconciliation, or statutory payroll anomalies detected.
+                  </p>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+
+        {/* ---------------------------------------------------- */}
+        {/* 4. KNOWLEDGE HUB TAB                                 */}
+        {/* ---------------------------------------------------- */}
+        {activeTab === 'knowledge' && (
+          <motion.div
+            key="knowledge"
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
+            className="grid grid-cols-1 md:grid-cols-3 gap-6"
+          >
+            {/* Business Rules */}
+            <motion.div
+              whileHover={{ y: -4 }}
+              transition={{ type: 'spring', stiffness: 350, damping: 25 }}
+              className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm hover:border-purple-500/40 transition-colors"
+            >
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-3">
+                <Briefcase className="h-4 w-4 text-purple-500" />
+                Sierra Leone Business Rules
+              </h3>
+              <div className="space-y-3 text-xs">
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800">
+                  <p className="font-semibold text-slate-900 dark:text-white">Shift & Grace Period</p>
+                  <p className="text-slate-500 dark:text-slate-400 mt-0.5">
+                    08:00 to 17:00 standard. Check-in between 08:00–08:30 is on-time. At or after 08:30:01 is late.
+                  </p>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800">
+                  <p className="font-semibold text-slate-900 dark:text-white">NASSIT Pension (Act No. 5 of 2001)</p>
+                  <p className="text-slate-500 dark:text-slate-400 mt-0.5">
+                    5% deducted from employee gross salary; 10% contributed by employer (total 15%).
+                  </p>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800">
+                  <p className="font-semibold text-slate-900 dark:text-white">Overtime Multipliers</p>
+                  <p className="text-slate-500 dark:text-slate-400 mt-0.5">
+                    1.5x basic hourly rate on working weekdays; 2.0x on weekends and declared statutory public holidays.
+                  </p>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800">
+                  <p className="font-semibold text-slate-900 dark:text-white">CR80 Smart QR Badges</p>
+                  <p className="text-slate-500 dark:text-slate-400 mt-0.5">
+                    ISO/IEC 7810 ID-1 standard dimensions (53.98 × 85.60 mm) with cryptographic HMAC-SHA256 tokens.
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Database Schema */}
+            <motion.div
+              whileHover={{ y: -4 }}
+              transition={{ type: 'spring', stiffness: 350, damping: 25 }}
+              className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm hover:border-indigo-500/40 transition-colors"
+            >
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-3">
+                <Database className="h-4 w-4 text-indigo-500" />
+                PostgreSQL 18 Data Dictionary
+              </h3>
+              <div className="space-y-2 text-xs">
+                {['employees', 'attendance', 'payroll', 'overtime_requests', 'qr_codes', 'departments', 'users', 'roles'].map((t) => (
+                  <div
+                    key={t}
+                    className="flex items-center justify-between p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 hover:border-indigo-500/30 transition-colors"
+                  >
+                    <span className="font-mono text-purple-600 dark:text-purple-400 font-semibold">{t}</span>
+                    <span className="text-[10px] text-slate-400 uppercase font-semibold">PostgreSQL Table</span>
                   </div>
                 ))}
-
-                {isChatLoading && (
-                  <div className="flex items-center space-x-2.5 text-xs text-purple-600 dark:text-purple-400 py-2">
-                    <div className="h-6 w-6 rounded-lg overflow-hidden border border-purple-400/40 shadow-xs flex items-center justify-center">
-                      <img src="/apex-copilot-logo.png" alt="Apex Copilot" className="h-full w-full object-cover animate-pulse" />
-                    </div>
-                    <span className="font-medium animate-pulse">
-                      Consulting Apex Intelligence Engine...
-                    </span>
-                  </div>
-                )}
-                <div ref={chatBottomRef} />
               </div>
+            </motion.div>
 
-              {/* Bottom Input Area in Ongoing Chat */}
-              <div className="border-t border-slate-200 dark:border-slate-800 p-3 bg-slate-50/50 dark:bg-slate-800/40">
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    handleSendMessage();
-                  }}
-                  className="flex items-center space-x-2"
-                >
-                  <input
-                    type="text"
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    placeholder="Ask a question or request an attendance/payroll action..."
-                    disabled={isChatLoading}
-                    className="flex-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
-                  />
-                  <button
-                    type="submit"
-                    disabled={!input.trim() || isChatLoading}
-                    className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 disabled:opacity-40 transition shadow-xs cursor-pointer"
-                    title="Send message"
-                  >
-                    <ArrowUp className="h-4 w-4" />
-                  </button>
-                </form>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* =================================================== */}
-      {/* TAB 2: AUTOMATIONS MANAGER                          */}
-      {/* =================================================== */}
-      {activeTab === 'automations' && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-bold text-slate-900 dark:text-white">
-                Scheduled Automation Workflows
-              </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                10 enterprise rules pre-configured. Toggled rules execute automatically in the background.
-              </p>
-            </div>
-            <button
-              onClick={fetchAutomations}
-              disabled={isAutoLoading}
-              className="flex items-center space-x-1.5 rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+            {/* Security & RBAC */}
+            <motion.div
+              whileHover={{ y: -4 }}
+              transition={{ type: 'spring', stiffness: 350, damping: 25 }}
+              className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm hover:border-emerald-500/40 transition-colors"
             >
-              <RefreshCw className={`h-3.5 w-3.5 ${isAutoLoading ? 'animate-spin' : ''}`} />
-              <span>Refresh</span>
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {automations.map((auto) => (
-              <div
-                key={auto.id}
-                className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/80 p-4 shadow-xs space-y-3"
-              >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <span className="inline-block rounded-md bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-400 text-[10px] font-bold uppercase px-2 py-0.5 mb-1">
-                      {auto.triggerType}
-                    </span>
-                    <h4 className="text-xs font-bold text-slate-900 dark:text-white">{auto.name}</h4>
-                  </div>
-                  <button
-                    onClick={() => handleToggleAutomation(auto.id, auto.isActive)}
-                    className="text-slate-400 hover:text-purple-600"
-                    title={auto.isActive ? 'Active (Click to disable)' : 'Disabled (Click to enable)'}
-                  >
-                    {auto.isActive ? (
-                      <ToggleRight className="h-6 w-6 text-purple-600 dark:text-purple-400" />
-                    ) : (
-                      <ToggleLeft className="h-6 w-6" />
-                    )}
-                  </button>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-3">
+                <Shield className="h-4 w-4 text-emerald-500" />
+                Security Policies & IDOR Matrix
+              </h3>
+              <div className="space-y-3 text-xs">
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800">
+                  <p className="font-semibold text-slate-900 dark:text-white">Strict IDOR Protection</p>
+                  <p className="text-slate-500 dark:text-slate-400 mt-0.5">
+                    Employees can only access their own personal punch history and payslips. Foreign data access is rejected.
+                  </p>
                 </div>
-                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                  {auto.description}
-                </p>
-                <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-700/60 text-[11px] text-slate-400">
-                  <span>Target: {auto.actionTarget}</span>
-                  <button
-                    onClick={() => handleRunAutomation(auto.id)}
-                    disabled={runningAutoId === auto.id}
-                    className="flex items-center space-x-1 text-purple-600 dark:text-purple-400 hover:underline font-semibold"
-                  >
-                    <Play className="h-3 w-3" />
-                    <span>{runningAutoId === auto.id ? 'Running...' : 'Run Now'}</span>
-                  </button>
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800">
+                  <p className="font-semibold text-slate-900 dark:text-white">Two-Step Mutation Gates</p>
+                  <p className="text-slate-500 dark:text-slate-400 mt-0.5">
+                    Batch payroll generation and database reseeding require explicit human confirmation.
+                  </p>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800">
+                  <p className="font-semibold text-slate-900 dark:text-white">Offline Resilience</p>
+                  <p className="text-slate-500 dark:text-slate-400 mt-0.5">
+                    Deterministic intent engine executes completely locally without third-party API exposure.
+                  </p>
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
-      )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* =================================================== */}
-      {/* TAB 3: ANOMALIES & AUDIT LOGS                       */}
-      {/* =================================================== */}
-      {activeTab === 'anomalies' && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-bold text-slate-900 dark:text-white">
-                Workforce Attendance Anomaly Detection
-              </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Automated detection of ghost check-ins, rapid scans, missing punches, and attendance spoofing.
-              </p>
-            </div>
-            <button
-              onClick={handleScanAnomalies}
-              disabled={isAnomalyLoading}
-              className="flex items-center space-x-1.5 rounded-xl bg-purple-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-purple-700 transition shadow-xs"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${isAnomalyLoading ? 'animate-spin' : ''}`} />
-              <span>Scan Database Now</span>
-            </button>
-          </div>
-
-          <div className="space-y-2">
-            {anomalies.length === 0 ? (
-              <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/50 p-8 text-center">
-                <CheckCircle2 className="h-8 w-8 text-emerald-500 mx-auto mb-2" />
-                <h4 className="text-xs font-bold text-slate-900 dark:text-white">No Anomalies Found</h4>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                  All employee check-in logs and overtime patterns conform to system standards.
-                </p>
-              </div>
-            ) : (
-              anomalies.map((anom) => (
-                <div
-                  key={anom.id}
-                  className="flex items-center justify-between rounded-xl border border-rose-200 dark:border-rose-900/40 bg-rose-50/50 dark:bg-rose-950/20 p-3 text-xs"
-                >
-                  <div className="flex items-center space-x-3">
-                    <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0" />
-                    <div>
-                      <span className="font-bold text-slate-900 dark:text-white">{anom.type}</span>
-                      <p className="text-[11px] text-slate-600 dark:text-slate-400">{anom.description}</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleResolveAnomaly(anom.id)}
-                    className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-1 text-[11px] font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition"
-                  >
-                    Resolve
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Full View Modal */}
-      {fullViewContent && (
-        <AIFullViewModal
-          content={fullViewContent}
-          onClose={() => setFullViewContent(null)}
-          onShare={() => {
-            const c = fullViewContent;
-            setFullViewContent(null);
-            setShareContent(c);
-          }}
-        />
-      )}
-
-      {/* Share Modal */}
-      {shareContent && (
-        <AIShareModal
-          content={shareContent}
-          onClose={() => setShareContent(null)}
-        />
-      )}
+      {/* ---------------------------------------------------- */}
+      {/* Full View Modal for Expanded Inspection & PDF/Excel  */}
+      {/* ---------------------------------------------------- */}
+      <AIFullViewModal
+        isOpen={fullViewModal.isOpen}
+        onClose={() => setFullViewModal((prev) => ({ ...prev, isOpen: false }))}
+        title={fullViewModal.title}
+        content={fullViewModal.content}
+        timestamp={fullViewModal.timestamp}
+        username={user?.username}
+      />
     </div>
   );
 };

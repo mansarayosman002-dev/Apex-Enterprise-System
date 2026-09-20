@@ -21,6 +21,7 @@ export interface AIChatMessage {
   content: string;
   toolCalls?: ToolCall[];
   toolCallId?: string;
+  toolName?: string;
   timestamp?: string;
 }
 
@@ -37,7 +38,7 @@ export interface AIToolDefinition {
   parameters: Record<string, AIToolParameterSchema>;
   requiredParams: string[];
   allowedRoles: UserRole[];
-  isWriteAction: boolean; // True for mutations that require explicit confirmation
+  isWriteAction: boolean;
   riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 }
 
@@ -84,17 +85,41 @@ export interface AIProvider {
   }>;
 }
 
-export type NotificationCategory =
-  | 'Attendance'
-  | 'Payroll'
-  | 'HR'
-  | 'System'
-  | 'Reminder'
-  | 'Alert'
-  | 'Announcement';
+export interface AutomationTask {
+  id: number;
+  name: string;
+  description?: string | null;
+  triggerType: string;
+  triggerConfig?: string | null;
+  conditionConfig?: string | null;
+  actionConfig?: string | null;
+  channel: string;
+  isActive: boolean;
+  lastRunAt?: Date | null;
+  nextRunAt?: Date | null;
+}
 
-export type NotificationPriority = 'low' | 'medium' | 'high' | 'urgent';
+export interface AutomationExecution {
+  id: number;
+  automationId: number;
+  triggeredBy: string;
+  status: string;
+  summary?: string | null;
+  affectedCount?: number | null;
+  errorDetails?: string | null;
+  executedAt: Date;
+}
 
-export type NotificationChannel = 'in_app' | 'email' | 'sms' | 'whatsapp';
-
-export type NotificationStatus = 'pending' | 'sent' | 'delivered' | 'failed' | 'read';
+export interface AnomalyItem {
+  id: number;
+  anomalyType: string;
+  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  entityType: string;
+  entityId?: string | null;
+  description: string;
+  details?: string | null;
+  status: string;
+  detectedAt: Date;
+  resolvedAt?: Date | null;
+  resolvedBy?: number | null;
+}

@@ -337,3 +337,52 @@ notificationRouter.post(
     }
   }
 );
+
+// 15. Get replies for a notification
+notificationRouter.get('/notifications/:id/replies', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const user = toUserContext(req);
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid notification ID.' });
+    }
+
+    const replies = await NotificationService.getReplies(id, user);
+    res.json({ replies });
+  } catch (err: any) {
+    if (err.message.includes('Unauthorized')) {
+      return res.status(403).json({ error: err.message });
+    }
+    if (err.message.includes('not found')) {
+      return res.status(404).json({ error: err.message });
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 16. Post a reply to a notification (Recipient, Admin, HR Officer)
+notificationRouter.post('/notifications/:id/replies', authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const user = toUserContext(req);
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid notification ID.' });
+    }
+
+    const { message } = req.body;
+    if (!message || typeof message !== 'string' || !message.trim()) {
+      return res.status(400).json({ error: 'Reply message cannot be empty.' });
+    }
+
+    const reply = await NotificationService.addReply(id, message, user);
+    res.status(201).json({ success: true, reply });
+  } catch (err: any) {
+    if (err.message.includes('Unauthorized')) {
+      return res.status(403).json({ error: err.message });
+    }
+    if (err.message.includes('not found')) {
+      return res.status(404).json({ error: err.message });
+    }
+    res.status(400).json({ error: err.message });
+  }
+});

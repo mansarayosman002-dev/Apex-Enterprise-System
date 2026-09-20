@@ -1,6 +1,13 @@
 import { db } from '../db/index.ts';
-import { notifications, notificationDeliveries, notificationPreferences, employees, users } from '../db/schema.ts';
-import { eq, and } from 'drizzle-orm';
+import {
+  notifications,
+  notificationDeliveries,
+  notificationPreferences,
+  notificationReplies,
+  employees,
+  users,
+} from '../db/schema.ts';
+import { eq, and, or, like, inArray } from 'drizzle-orm';
 import { NotificationService } from '../notifications/notification.service.ts';
 import { NotificationTemplateEngine } from '../notifications/notification.templates.ts';
 import { NotificationPermissions } from '../notifications/notification.permissions.ts';
@@ -282,6 +289,209 @@ export async function runNotificationTests() {
 
     assert(transactionSucceeded === true, 'Attendance/Payroll transaction completes successfully even if notification fails');
   });
+
+  // 8. Notification Reply Feature & IDOR Authorization Tests
+  await runTest('Recipient can successfully reply to their notification', async () => {
+    const notif = await NotificationService.dispatch({
+      userId: empUser.id,
+      employeeId: empUser.employeeId || undefined,
+      title: 'Action Item Required',
+      message: 'Please review and confirm your shift roster for next week.',
+      category: 'Attendance',
+      type: 'ATTENDANCE',
+    });
+
+    const reply = await NotificationService.addReply(
+      notif.id,
+      'Confirmed, I have reviewed the schedule and it looks good.',
+      {
+        id: empUser.id,
+        username: empUser.username,
+        roleName: 'Employee',
+        employeeId: empUser.employeeId,
+      }
+    );
+
+    assert(reply !== undefined && reply.id > 0, 'Reply record created in database');
+    assert(reply.notificationId === notif.id, 'Reply linked to parent notification');
+    assert(reply.message === 'Confirmed, I have reviewed the schedule and it looks good.', 'Reply message persisted accurately');
+    assert(reply.senderRole === 'Employee', 'Sender role recorded correctly');
+
+    await db.delete(notifications).where(eq(notifications.id, notif.id));
+  });
+
+  await runTest('Notification replies are retrieved in chronological order', async () => {
+    const notif = await NotificationService.dispatch({
+      userId: empUser.id,
+      employeeId: empUser.employeeId || undefined,
+      title: 'Thread Test Notification',
+      message: 'Initial message body',
+      category: 'HR',
+      type: 'HR',
+    });
+
+    const userContext = {
+      id: empUser.id,
+      username: empUser.username,
+      roleName: 'Employee',
+      employeeId: empUser.employeeId,
+    };
+
+    await NotificationService.addReply(notif.id, 'First reply from employee', userContext);
+    await NotificationService.addReply(notif.id, 'Second reply follow-up', userContext);
+
+    const replies = await NotificationService.getReplies(notif.id, userContext);
+    assert(replies.length === 2, 'Retrieved 2 replies in thread');
+    assert(replies[0].message === 'First reply from employee', 'First reply ordered first');
+    assert(replies[1].message === 'Second reply follow-up', 'Second reply ordered second');
+
+    await db.delete(notifications).where(eq(notifications.id, notif.id));
+  });
+
+  await runTest('Foreign unauthorized employee is strictly denied from replying (IDOR Defense)', async () => {
+    const notif = await NotificationService.dispatch({
+      userId: empUser.id,
+      employeeId: empUser.employeeId || undefined,
+      title: 'Confidential Disciplinary Notice',
+      message: 'Private personnel discussion.',
+      category: 'HR',
+      type: 'HR',
+    });
+
+    let forbiddenCaught = false;
+    try {
+      await NotificationService.addReply(
+        notif.id,
+        'Attempting to reply to someone else notification',
+        {
+          id: 99999,
+          username: 'malicious.intruder',
+          roleName: 'Employee',
+          employeeId: 88888,
+        }
+      );
+    } catch (err: any) {
+      if (err.message.includes('Unauthorized')) {
+        forbiddenCaught = true;
+      }
+    }
+
+    assert(forbiddenCaught === true, 'Foreign employee denied with Unauthorized (IDOR defense confirmed)');
+
+    await db.delete(notifications).where(eq(notifications.id, notif.id));
+  });
+
+  await runTest('Empty or whitespace-only reply messages are rejected', async () => {
+    const notif = await NotificationService.dispatch({
+      userId: empUser.id,
+      employeeId: empUser.employeeId || undefined,
+      title: 'Empty Validation Test',
+      message: 'Validation test message',
+      category: 'System',
+      type: 'SYSTEM',
+    });
+
+    let emptyCaught = false;
+    try {
+      await NotificationService.addReply(notif.id, '    ', {
+        id: empUser.id,
+        username: empUser.username,
+        roleName: 'Employee',
+        employeeId: empUser.employeeId,
+      });
+    } catch (err: any) {
+      if (err.message.includes('cannot be empty')) {
+        emptyCaught = true;
+      }
+    }
+
+    assert(emptyCaught === true, 'Whitespace-only message correctly rejected with validation error');
+
+    await db.delete(notifications).where(eq(notifications.id, notif.id));
+  });
+
+  await runTest('Administrator and HR Officer can reply to employee notification threads', async () => {
+    const notif = await NotificationService.dispatch({
+      userId: empUser.id,
+      employeeId: empUser.employeeId || undefined,
+      title: 'Leave Approval Follow-up',
+      message: 'Your leave application was received.',
+      category: 'HR',
+      type: 'HR',
+    });
+
+    const adminReply = await NotificationService.addReply(
+      notif.id,
+      'HR has reviewed and approved this request.',
+      {
+        id: testUser.id,
+        username: testUser.username,
+        roleName: 'Administrator',
+        employeeId: null,
+      }
+    );
+
+    assert(adminReply.id > 0, 'Administrator reply succeeded');
+    assert(adminReply.senderRole === 'Administrator', 'Administrator role recorded on reply');
+
+    await db.delete(notifications).where(eq(notifications.id, notif.id));
+  });
+
+  await runTest('Deleting notification cascades and removes all associated replies', async () => {
+    const notif = await NotificationService.dispatch({
+      userId: empUser.id,
+      employeeId: empUser.employeeId || undefined,
+      title: 'Cascade Delete Test',
+      message: 'Testing cascade removal of replies.',
+      category: 'System',
+      type: 'SYSTEM',
+    });
+
+    await NotificationService.addReply(notif.id, 'Reply 1', {
+      id: empUser.id,
+      username: empUser.username,
+      roleName: 'Employee',
+      employeeId: empUser.employeeId,
+    });
+
+    await NotificationService.deleteNotification(notif.id, {
+      id: testUser.id,
+      username: testUser.username,
+      roleName: 'Administrator',
+      employeeId: null,
+    });
+
+    const orphanReplies = await db
+      .select()
+      .from(notificationReplies)
+      .where(eq(notificationReplies.notificationId, notif.id));
+
+    assert(orphanReplies.length === 0, 'All replies successfully cascaded on notification deletion');
+  });
+
+  // Automated QA Teardown: Clean up test notifications generated during this test suite
+  try {
+    await db.delete(notifications).where(
+      or(
+        inArray(notifications.title, [
+          'QA Automated Test Alert',
+          'Check-In Confirmation',
+          'Unread Counter Test',
+          'Transaction Safety Check',
+          'Response: Leave Approval Follow-up',
+          'Cascade Delete Test',
+          'Action Item Required',
+          'Thread Test Notification',
+        ]),
+        like(notifications.title, 'Reply Received:%'),
+        like(notifications.title, '%Test%'),
+        like(notifications.message, '%Testing cascade%'),
+        like(notifications.message, '%Test Alert%')
+      )
+    );
+  } catch (teardownErr) {
+    console.warn('  [Notice] Test notification teardown cleanup caught:', teardownErr);
+  }
 
   console.log(`--- Notification Test Results: ${passed} Passed, ${failed} Failed ---`);
   return { passed, failed };

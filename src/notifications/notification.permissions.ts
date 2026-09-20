@@ -64,4 +64,50 @@ export class NotificationPermissions {
     if (user.roleName === 'Administrator') return true;
     return user.employeeId === targetEmployeeId;
   }
+
+  /**
+   * Determine if user can reply to a specific notification (Recipient, Admin, HR Officer)
+   */
+  static canReplyToNotification(
+    user: UserContext,
+    notification: { userId?: number | null; employeeId?: number | null }
+  ): boolean {
+    if (!user || !user.id) return false;
+
+    // Administrators and HR Officers can participate in and manage all notification threads
+    if (['Administrator', 'HR Officer'].includes(user.roleName)) {
+      return true;
+    }
+
+    // Direct recipient by user ID
+    if (notification.userId != null && notification.userId === user.id) {
+      return true;
+    }
+
+    // Direct recipient by employee ID
+    if (
+      notification.employeeId != null &&
+      user.employeeId != null &&
+      notification.employeeId === user.employeeId
+    ) {
+      return true;
+    }
+
+    // Unrestricted broadcast notification with no specific target
+    if (notification.userId == null && notification.employeeId == null) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Determine if user can view the reply conversation thread of a notification
+   */
+  static canViewNotificationReplies(
+    user: UserContext,
+    notification: { userId?: number | null; employeeId?: number | null }
+  ): boolean {
+    return this.canReplyToNotification(user, notification);
+  }
 }

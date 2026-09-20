@@ -4,25 +4,24 @@ import { PayrollRecord, Department, SystemSettings, PayrollPreviewResponse, Payr
 import {
   DollarSign,
   Calculator,
-  Download,
   Filter,
   CheckCircle2,
-  Printer,
   Edit2,
   RefreshCw,
   Clock,
-  Sparkles,
   CreditCard,
   Eye,
   Search,
   ShieldCheck,
   Trash2,
   FileText,
+  FileSpreadsheet,
 } from 'lucide-react';
-import { exportTableToCsv, exportTableToPdf } from '../utils/exportDocument.ts';
+import { exportTableToExcel, exportTableToPdf } from '../utils/exportDocument.ts';
 import { PayslipModal } from '../components/attendance/PayslipModal.tsx';
 import { PayrollReviewModal } from '../components/payroll/PayrollReviewModal.tsx';
 import { PayrollPreviewModal } from '../components/payroll/PayrollPreviewModal.tsx';
+import { StatCard } from '../components/common/StatCard.tsx';
 
 export const PayrollPage: React.FC = () => {
   const currentMonthStr = new Date().toISOString().substring(0, 7); // e.g. "2026-08"
@@ -143,29 +142,14 @@ export const PayrollPage: React.FC = () => {
     0
   );
 
-  const exportCSV = () => {
+  const exportExcel = () => {
     if (payrollRecords.length === 0) return;
-    const headers = [
-      'Period',
-      'Employee Code',
-      'Employee Name',
-      'Department',
-      'Basic Salary',
-      'Overtime Hours',
-      'Overtime Pay',
-      'Allowances',
-      'Deductions',
-      'Gross Salary',
-      'Net Salary',
-      'Status',
-      'Created At',
-    ];
 
     const totalGross = payrollRecords.reduce((acc, r) => acc + parseFloat(r.grossSalary?.toString() || '0'), 0);
     const totalNet = payrollRecords.reduce((acc, r) => acc + parseFloat(r.netSalary?.toString() || '0'), 0);
     const totalOT = payrollRecords.reduce((acc, r) => acc + parseFloat(r.overtimeAmount?.toString() || '0'), 0);
 
-    exportTableToCsv({
+    exportTableToExcel({
       title: `Automated Payroll Ledger - Period ${selectedPeriod}`,
       subtitle: 'Attendance-integrated compensation, overtime multipliers, allowances, deductions, and disbursements',
       filenamePrefix: `payroll_ledger_${selectedPeriod}`,
@@ -225,6 +209,11 @@ export const PayrollPage: React.FC = () => {
 
   const exportPDF = () => {
     if (payrollRecords.length === 0) return;
+    const totalBasic = payrollRecords.reduce((acc, r) => acc + parseFloat(r.basicSalary?.toString() || '0'), 0);
+    const totalGross = payrollRecords.reduce((acc, r) => acc + parseFloat(r.grossSalary?.toString() || '0'), 0);
+    const totalNet = payrollRecords.reduce((acc, r) => acc + parseFloat(r.netSalary?.toString() || '0'), 0);
+    const totalOT = payrollRecords.reduce((acc, r) => acc + parseFloat(r.overtimeAmount?.toString() || '0'), 0);
+
     exportTableToPdf({
       title: `Automated Payroll Ledger - Period ${selectedPeriod}`,
       subtitle: 'Official compensation disbursements, overtime earnings, and net settlements',
@@ -233,6 +222,8 @@ export const PayrollPage: React.FC = () => {
         'Period': selectedPeriod,
         'Currency': currency.trim(),
         'Records': payrollRecords.length,
+        'Total Gross': `NLe ${totalGross.toFixed(2)}`,
+        'Total Net': `NLe ${totalNet.toFixed(2)}`,
       },
       headers: ['Period', 'Code', 'Employee Name', 'Department', 'Basic', 'OT Pay', 'Gross', 'Net', 'Status'],
       rows: payrollRecords.map((r) => [
@@ -246,6 +237,17 @@ export const PayrollPage: React.FC = () => {
         parseFloat(r.netSalary.toString()).toFixed(2),
         r.status,
       ]),
+      summaryRow: [
+        'TOTALS',
+        `Count: ${payrollRecords.length}`,
+        '',
+        '',
+        totalBasic.toFixed(2),
+        totalOT.toFixed(2),
+        totalGross.toFixed(2),
+        totalNet.toFixed(2),
+        '',
+      ],
     });
   };
 
@@ -258,25 +260,25 @@ export const PayrollPage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 dark:text-white">Automated Payroll Ledger</h1>
+          <h1 className="text-xl font-bold text-slate-900 dark:text-white">Payroll</h1>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Attendance-integrated compensation, overtime multipliers, allowances, deductions, and payslips
+            Compensation, overtime multipliers, allowances, and payslips.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={exportCSV}
-            title="Download formatted Excel CSV payroll ledger"
-            className="flex items-center justify-center space-x-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 sm:px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-2xs transition"
+            onClick={exportExcel}
+            title="Export Excel (.xls)"
+            className="flex items-center justify-center space-x-1.5 rounded-xl border border-emerald-600/30 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 sm:px-3.5 py-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 shadow-2xs transition"
           >
-            <Download className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-            <span className="hidden sm:inline">Export CSV</span>
-            <span className="sm:hidden">CSV</span>
+            <FileSpreadsheet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <span className="hidden sm:inline">Export Excel</span>
+            <span className="sm:hidden">Excel</span>
           </button>
           <button
             onClick={exportPDF}
-            title="Download official PDF payroll ledger"
+            title="Export PDF"
             className="flex items-center justify-center space-x-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 sm:px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-2xs transition"
           >
             <FileText className="h-4 w-4 text-rose-600 dark:text-rose-400" />
@@ -302,7 +304,7 @@ export const PayrollPage: React.FC = () => {
             className="flex items-center justify-center space-x-1.5 rounded-xl bg-indigo-600 px-3.5 sm:px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-indigo-700 transition disabled:opacity-50"
           >
             {isPreviewLoading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Calculator className="h-4 w-4" />}
-            <span className="hidden sm:inline">Preview & Calculate</span>
+            <span className="hidden sm:inline">Calculate</span>
             <span className="sm:hidden">Calculate</span>
           </button>
         </div>
@@ -310,42 +312,45 @@ export const PayrollPage: React.FC = () => {
 
       {/* Summary KPI Highlights */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xs">
-          <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-            Total Net Salary ({selectedPeriod})
-          </span>
-          <div className="mt-1 text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-            {currency}{totalNet.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </div>
-          <span className="text-[11px] text-slate-400 dark:text-slate-500">Total payable across {payrollRecords.length} records</span>
-        </div>
+        <StatCard
+          title={`Net Pay (${selectedPeriod})`}
+          value={`${currency}${totalNet.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          subtitle={`${payrollRecords.length} records`}
+          icon={DollarSign}
+          iconBgColor="bg-emerald-50 dark:bg-emerald-950/60"
+          iconTextColor="text-emerald-600 dark:text-emerald-400"
+          badge="Net Payout"
+          badgeColor="bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300"
+        />
 
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xs">
-          <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-            Total Gross Earnings
-          </span>
-          <div className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">
-            {currency}{totalGross.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </div>
-          <span className="text-[11px] text-slate-400 dark:text-slate-500">Formula: Basic + Overtime + Allowances</span>
-        </div>
+        <StatCard
+          title="Gross Earnings"
+          value={`${currency}${totalGross.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          subtitle="Pre-deductions"
+          icon={CreditCard}
+          iconBgColor="bg-blue-50 dark:bg-blue-950/60"
+          iconTextColor="text-blue-600 dark:text-blue-400"
+          badge="Pre-Deductions"
+          badgeColor="bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300"
+        />
 
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xs">
-          <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-            Total Overtime Compensation
-          </span>
-          <div className="mt-1 text-2xl font-bold text-indigo-600 dark:text-indigo-400">
-            +{currency}{totalOvertime.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </div>
-          <span className="text-[11px] text-slate-400 dark:text-slate-500">Calculated directly from verified attendance logs</span>
-        </div>
+        <StatCard
+          title="Overtime"
+          value={`+${currency}${totalOvertime.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          subtitle="Verified logs"
+          icon={Clock}
+          iconBgColor="bg-indigo-50 dark:bg-indigo-950/60"
+          iconTextColor="text-indigo-600 dark:text-indigo-400"
+          badge="1.5x Overtime"
+          badgeColor="bg-indigo-100 dark:bg-indigo-950/80 text-indigo-800 dark:text-indigo-300"
+        />
       </div>
 
       {/* Search & Filters Bar */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xs">
         {/* Search */}
         <div>
-          <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">Search Employee</label>
+          <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">Search</label>
           <div className="relative">
             <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
             <input
@@ -360,7 +365,7 @@ export const PayrollPage: React.FC = () => {
 
         {/* Period */}
         <div>
-          <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">Payroll Period (YYYY-MM)</label>
+          <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">Period</label>
           <input
             type="month"
             value={selectedPeriod}
@@ -479,7 +484,7 @@ export const PayrollPage: React.FC = () => {
                       onClick={() => setPayslipRecord(rec)}
                       className="flex items-center space-x-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition"
                     >
-                      <Printer className="h-3.5 w-3.5" />
+                      <FileText className="h-3.5 w-3.5" />
                       <span>View Payslip</span>
                     </button>
 
@@ -580,7 +585,7 @@ export const PayrollPage: React.FC = () => {
                             title="Generate Payslip"
                             className="flex items-center space-x-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 px-2 py-1 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition"
                           >
-                            <Printer className="h-3 w-3" />
+                            <FileText className="h-3 w-3" />
                             <span>Payslip</span>
                           </button>
                           

@@ -6,7 +6,6 @@ import {
   User,
   QrCode,
   Download,
-  Printer,
   Calendar,
   DollarSign,
   Building,
@@ -19,14 +18,15 @@ import {
   RefreshCw,
   Camera,
   Upload,
+  FileText,
 } from 'lucide-react';
 import { PayslipModal } from '../components/attendance/PayslipModal.tsx';
 import {
   EmployeeIDBadge,
   EmployeeBadgeData,
-  printEmployeeBadge,
 } from '../components/common/EmployeeIDBadge.tsx';
 import { broadcastEmployeePhotoUpdated, PHOTO_UPDATED_EVENT, EmployeePhotoUpdateDetail } from '../utils/photoSync.ts';
+import { exportBadgeToPdf } from '../utils/exportDocument.ts';
 
 export const ProfilePage: React.FC = () => {
   const { user } = useAuth();
@@ -162,28 +162,27 @@ export const ProfilePage: React.FC = () => {
     a.click();
   };
 
-  const handlePrintCard = () => {
-    const badgeData: EmployeeBadgeData = {
-      fullName: employee ? `${employee.firstName} ${employee.lastName}` : (user?.username || 'Staff Member'),
-      jobTitle: employee?.position || user?.roleName || 'Employee',
-      department: employee?.departmentName || 'Apex Systems',
-      employeeId: employee?.employeeCode || user?.username || 'EMP',
-      rawEmployeeId: employee?.id || user?.employeeId,
-      employeeCode: employee?.employeeCode,
-      photoUrl: employee?.photoUrl,
-      qrCodeUrl: employee?.qrCode?.dataUrl,
-      status: employee?.status,
-    };
-    printEmployeeBadge(badgeData);
+  const handleDownloadBadgePdf = () => {
+    if (!employee) return;
+    exportBadgeToPdf({
+      fullName: `${employee.firstName} ${employee.lastName}`,
+      jobTitle: employee.position,
+      department: employee.departmentName,
+      employeeId: employee.employeeCode || `EMP-${employee.id}`,
+      employeeCode: employee.employeeCode,
+      photoUrl: employee.photoUrl,
+      qrCodeUrl: employee.qrCode?.dataUrl,
+      status: employee.status,
+    });
   };
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-xl font-bold text-slate-900 dark:text-white">Personal Profile & Access Badge</h1>
+        <h1 className="text-xl font-bold text-slate-900 dark:text-white">Profile</h1>
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          Your personal attendance QR token, assigned department, and historical statements
+          Personal credentials, badge, and account details.
         </p>
       </div>
 
@@ -246,21 +245,24 @@ export const ProfilePage: React.FC = () => {
                   </label>
                 )}
 
+                {employee && (
+                  <button
+                    onClick={handleDownloadBadgePdf}
+                    className="w-full flex items-center justify-center space-x-1.5 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/70 dark:bg-indigo-950/40 px-3 py-2 text-xs font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 shadow-2xs transition"
+                  >
+                    <FileText className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+                    <span>Download Badge (PDF)</span>
+                  </button>
+                )}
+
                 {employee?.qrCode?.dataUrl && (
-                  <div className="flex w-full gap-2">
+                  <div className="flex w-full">
                     <button
                       onClick={handleDownloadQR}
-                      className="flex-1 flex items-center justify-center space-x-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-2xs transition"
+                      className="w-full flex items-center justify-center space-x-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-2xs transition"
                     >
                       <Download className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
-                      <span>Download QR</span>
-                    </button>
-                    <button
-                      onClick={handlePrintCard}
-                      className="flex-1 flex items-center justify-center space-x-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 text-xs font-semibold shadow-xs transition"
-                    >
-                      <Printer className="h-3.5 w-3.5 text-white" />
-                      <span>Print Badge</span>
+                      <span>Download QR Code</span>
                     </button>
                   </div>
                 )}

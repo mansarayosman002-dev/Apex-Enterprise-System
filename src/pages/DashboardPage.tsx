@@ -16,7 +16,6 @@ import {
   UserCheck,
   Award,
   RefreshCw,
-  Sparkles,
   ShieldCheck,
 } from 'lucide-react';
 import { AdminDashboardView } from '../components/dashboard/AdminDashboardView.tsx';
@@ -38,7 +37,7 @@ type DashboardPerspective = 'Administrator' | 'HR Officer' | 'Payroll Officer' |
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenScanner, setActivePage }) => {
   const { user } = useAuth();
-  
+
   // Active perspective (defaults to user's real role)
   const [perspective, setPerspective] = useState<DashboardPerspective>(
     (user?.roleName as DashboardPerspective) || 'Administrator'
@@ -213,11 +212,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenScanner, set
     : (user?.username?.substring(0, 2).toUpperCase() || 'EX');
 
   const perspectives: { role: DashboardPerspective; label: string; icon: any }[] = [
-    { role: 'Administrator', label: 'Administrator', icon: LayoutDashboard },
-    { role: 'HR Officer', label: 'HR Dashboard', icon: Users },
-    { role: 'Payroll Officer', label: 'Payroll Dashboard', icon: CreditCard },
-    { role: 'Employee', label: 'Employee Portal', icon: UserCheck },
-    { role: 'Management', label: 'Management View', icon: Award },
+    { role: 'Administrator', label: 'Admin', icon: LayoutDashboard },
+    { role: 'HR Officer', label: 'HR', icon: Users },
+    { role: 'Payroll Officer', label: 'Payroll', icon: CreditCard },
+    { role: 'Employee', label: 'Employee', icon: UserCheck },
+    { role: 'Management', label: 'Management', icon: Award },
   ];
 
   return (
@@ -225,9 +224,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenScanner, set
       {/* Top Header & Perspective Switcher */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div className="flex items-center space-x-3.5">
-          {/* Signed-in Employee Profile Picture */}
+          {/* Signed-in Employee Profile Picture with Cyber Halo */}
           <div className="relative shrink-0">
-            <div className="h-12 w-12 sm:h-13 sm:w-13 rounded-2xl overflow-hidden ring-2 ring-indigo-500/30 dark:ring-indigo-400/40 bg-slate-100 dark:bg-slate-800 shadow-sm flex items-center justify-center">
+            <div className="h-12 w-12 sm:h-13 sm:w-13 rounded-2xl overflow-hidden ring-2 ring-cyan-500/50 shadow-[0_0_15px_rgba(6,182,212,0.35)] bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
               {signedInPhoto && !userPhotoError ? (
                 <img
                   src={signedInPhoto}
@@ -236,7 +235,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenScanner, set
                   onError={() => setUserPhotoError(true)}
                 />
               ) : (
-                <div className="h-full w-full flex items-center justify-center bg-indigo-600 text-white font-bold text-sm sm:text-base">
+                <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-cyan-600 to-blue-700 text-white font-mono font-bold text-sm sm:text-base">
                   {signedInInitials}
                 </div>
               )}
@@ -244,38 +243,27 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenScanner, set
             {/* Online/Active status indicator */}
             <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5" title="Active Employee Session">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 ring-2 ring-white dark:ring-slate-900"></span>
+              <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 ring-2 ring-white dark:ring-slate-900 shadow-[0_0_6px_#10b981]"></span>
             </span>
           </div>
 
           <div>
-            <div className="flex items-center space-x-2">
-              <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
+            <div className="flex items-center space-x-2.5">
+              <h1 className="text-xl font-black tracking-tight text-slate-900 dark:text-white uppercase drop-shadow-[0_0_10px_rgba(6,182,212,0.15)]">
                 {perspective} Dashboard
               </h1>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 flex flex-wrap items-center gap-1.5">
-              <span>Welcome, <strong className="font-semibold text-slate-800 dark:text-slate-200">{signedInName}</strong></span>
-              <span>•</span>
-              <span className="text-indigo-600 dark:text-indigo-400 font-medium">{signedInRole}</span>
-              {signedInDept && (
-                <>
-                  <span>•</span>
-                  <span>{signedInDept}</span>
-                </>
-              )}
-              {signedInEmpCode && (
-                <span className="font-mono text-[10px] bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
-                  {signedInEmpCode}
-                </span>
-              )}
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-1.5 font-mono">
+              <strong className="font-semibold text-slate-800 dark:text-slate-200">{signedInName}</strong>
+              <span className="text-cyan-500">•</span>
+              <span className="text-cyan-600 dark:text-cyan-400 font-medium tracking-wide">{signedInRole}</span>
             </p>
           </div>
         </div>
 
         {/* Perspective / Role Selector Pill Bar */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none touch-scroll max-w-full">
-          <div className="flex items-center rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-1 shadow-2xs shrink-0">
+          <div className="flex items-center rounded-xl border border-cyan-500/25 bg-white/90 dark:bg-slate-900/80 backdrop-blur-md p-1 shadow-[0_0_15px_rgba(6,182,212,0.1)] shrink-0">
             {perspectives.map(({ role, label, icon: Icon }) => {
               const isActive = perspective === role;
               return (
@@ -283,11 +271,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenScanner, set
                   key={role}
                   type="button"
                   onClick={() => setPerspective(role)}
-                  className={`flex items-center space-x-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition whitespace-nowrap ${
-                    isActive
-                      ? 'bg-indigo-600 text-white shadow-2xs'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-800'
-                  }`}
+                  className={`flex items-center space-x-1.5 rounded-lg px-3 py-1.5 text-xs font-mono font-bold uppercase tracking-wider transition whitespace-nowrap ${isActive
+                    ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-[0_0_14px_rgba(6,182,212,0.4)] border border-cyan-300/40'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-300 hover:bg-cyan-500/10'
+                    }`}
                 >
                   <Icon className="h-3.5 w-3.5" />
                   <span>{label}</span>
@@ -300,7 +287,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onOpenScanner, set
             type="button"
             onClick={loadData}
             title="Refresh Metrics"
-            className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white shadow-2xs transition shrink-0"
+            className="flex h-8 w-8 items-center justify-center rounded-xl border border-cyan-500/30 bg-white/90 dark:bg-slate-900/80 text-cyan-600 dark:text-cyan-400 hover:bg-cyan-500/15 hover:shadow-[0_0_12px_rgba(6,182,212,0.3)] shadow-2xs transition shrink-0 cursor-pointer"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
           </button>

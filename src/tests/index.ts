@@ -7,9 +7,9 @@ import { runPayrollTests } from './payroll.test.ts';
 import { runRBACTests } from './rbac.test.ts';
 import { runSecurityTests } from './security.test.ts';
 import { runUITests } from './ui.test.ts';
-import { runAITests } from './ai.test.ts';
 import { runNotificationTests } from './notification.test.ts';
 import { runDataValidationTests } from './dataValidationConstraints.test.ts';
+import { runAiTests } from './ai.test.ts';
 
 async function main() {
   console.log('╔══════════════════════════════════════════════════════════════════╗');
@@ -46,14 +46,14 @@ async function main() {
     const uiRes = await runUITests();
     suiteResults.push({ name: 'UI/UX & State Suite', ...uiRes });
 
-    const aiRes = await runAITests();
-    suiteResults.push({ name: 'AI & Automations Suite', ...aiRes });
-
     const notifRes = await runNotificationTests();
     suiteResults.push({ name: 'Notification Module Suite', ...notifRes });
 
     const valRes = await runDataValidationTests();
     suiteResults.push({ name: 'Data Validation & DB Constraints', ...valRes });
+
+    const aiRes = await runAiTests();
+    suiteResults.push({ name: 'Enterprise AI Assistant Suite', ...aiRes });
 
     console.log('╔══════════════════════════════════════════════════════════════════╗');
     console.log('║                     FINAL QA AUDIT SUMMARY                       ║');

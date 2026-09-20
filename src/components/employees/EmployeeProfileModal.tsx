@@ -4,7 +4,6 @@ import {
   X,
   QrCode,
   Download,
-  Printer,
   RefreshCw,
   Mail,
   Phone,
@@ -25,7 +24,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../services/api.ts';
 import { ApexLogo } from '../common/ApexLogo.tsx';
-import { EmployeeIDBadge, printEmployeeBadge } from '../common/EmployeeIDBadge.tsx';
+import { EmployeeIDBadge } from '../common/EmployeeIDBadge.tsx';
 import { broadcastEmployeePhotoUpdated, PHOTO_UPDATED_EVENT, EmployeePhotoUpdateDetail } from '../../utils/photoSync.ts';
 
 interface EmployeeProfileModalProps {
@@ -190,21 +189,6 @@ export const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
     document.body.removeChild(a);
   };
 
-  const handlePrintBadge = () => {
-    if (!employee) return;
-    printEmployeeBadge({
-      fullName: `${employee.firstName} ${employee.lastName}`,
-      jobTitle: employee.position,
-      department: employee.departmentName || 'General Operations',
-      employeeId: employee.employeeCode,
-      rawEmployeeId: employee.id,
-      employeeCode: employee.employeeCode,
-      photoUrl: employee.photoUrl,
-      qrCodeUrl: employee.qrCode?.dataUrl,
-      status: employee.status,
-    });
-  };
-
   if (!isOpen) return null;
 
   return (
@@ -331,23 +315,13 @@ export const EmployeeProfileModal: React.FC<EmployeeProfileModalProps> = ({
 
                   {/* Actions for Badge */}
                   <div className="flex flex-wrap items-center justify-between gap-3 pt-2 print:hidden border-t border-slate-100 dark:border-slate-800">
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        onClick={handlePrintBadge}
-                        className="flex items-center space-x-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 text-xs font-semibold shadow-xs transition"
-                        title="Print official CR80 portrait badge (53.98 × 85.60 mm)"
-                      >
-                        <Printer className="h-3.5 w-3.5 text-white" />
-                        <span>Print Badge (53.98 × 85.60 mm)</span>
-                      </button>
-                      <button
-                        onClick={handleDownloadQR}
-                        className="flex items-center space-x-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-2xs transition"
-                      >
-                        <Download className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
-                        <span>Download QR PNG</span>
-                      </button>
-                    </div>
+                    <button
+                      onClick={handleDownloadQR}
+                      className="flex items-center space-x-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-2xs transition"
+                    >
+                      <Download className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+                      <span>Download QR PNG</span>
+                    </button>
 
                     <button
                       onClick={handleRegenerate}

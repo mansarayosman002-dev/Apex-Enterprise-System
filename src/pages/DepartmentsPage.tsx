@@ -22,6 +22,7 @@ import {
   Award,
   Calendar,
 } from 'lucide-react';
+import { StatCard } from '../components/common/StatCard.tsx';
 
 export const DepartmentsPage: React.FC = () => {
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -134,9 +135,9 @@ export const DepartmentsPage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Department Management</h1>
+          <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Departments</h1>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Configure business units, organizational divisions, and monitor departmental staffing distribution
+            Manage organizational units and staffing distribution.
           </p>
         </div>
 
@@ -154,53 +155,51 @@ export const DepartmentsPage: React.FC = () => {
 
       {/* Metric Cards Banner */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Total Departments</span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
-              <Building className="h-4 w-4" />
-            </div>
-          </div>
-          <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">{stats.totalDepts}</p>
-          <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">Active divisions</p>
-        </div>
+        <StatCard
+          title="Departments"
+          value={stats.totalDepts}
+          subtitle="Total units"
+          icon={Building}
+          iconBgColor="bg-indigo-50 dark:bg-indigo-950/60"
+          iconTextColor="text-indigo-600 dark:text-indigo-400"
+          badge="Units"
+          badgeColor="bg-indigo-100 dark:bg-indigo-950/80 text-indigo-800 dark:text-indigo-300"
+        />
 
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Assigned Staff</span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400">
-              <Users className="h-4 w-4" />
-            </div>
-          </div>
-          <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">{stats.totalStaff}</p>
-          <p className="mt-0.5 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">Distributed employees</p>
-        </div>
+        <StatCard
+          title="Total Staff"
+          value={stats.totalStaff}
+          subtitle="Assigned staff"
+          icon={Users}
+          iconBgColor="bg-emerald-50 dark:bg-emerald-950/60"
+          iconTextColor="text-emerald-600 dark:text-emerald-400"
+          badge="Allocated"
+          badgeColor="bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300"
+          isLive={true}
+        />
 
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Avg Staff / Dept</span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400">
-              <BarChart3 className="h-4 w-4" />
-            </div>
-          </div>
-          <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">{stats.avgStaff}</p>
-          <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">Members per unit</p>
-        </div>
+        <StatCard
+          title="Avg / Unit"
+          value={stats.avgStaff}
+          subtitle="Per division"
+          icon={BarChart3}
+          iconBgColor="bg-amber-50 dark:bg-amber-950/60"
+          iconTextColor="text-amber-600 dark:text-amber-400"
+          badge="Average"
+          badgeColor="bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300"
+        />
 
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Largest Division</span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-violet-50 dark:bg-violet-950/60 text-violet-600 dark:text-violet-400">
-              <Award className="h-4 w-4" />
-            </div>
-          </div>
-          <p className="mt-2 text-base font-bold text-slate-900 dark:text-white truncate" title={stats.largestDept}>
-            {stats.largestDept}
-          </p>
-          <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">
-            {stats.maxStaff} staff member{stats.maxStaff !== 1 ? 's' : ''}
-          </p>
-        </div>
+        <StatCard
+          title="Largest Unit"
+          value={stats.largestDept}
+          subtitle={`${stats.maxStaff} staff`}
+          icon={Award}
+          iconBgColor="bg-violet-50 dark:bg-violet-950/60"
+          iconTextColor="text-violet-600 dark:text-violet-400"
+          badge={`${stats.maxStaff} Staff`}
+          badgeColor="bg-violet-100 dark:bg-violet-950/80 text-violet-800 dark:text-violet-300"
+          animateValue={false}
+        />
       </div>
 
       {/* Filter and View Controls */}

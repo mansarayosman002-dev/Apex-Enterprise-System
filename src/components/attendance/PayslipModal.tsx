@@ -1,7 +1,8 @@
 import React from 'react';
 import { PayrollRecord } from '../../types/index.ts';
-import { Printer, Download, X, Building2, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { Download, X, Building2, CheckCircle2, ShieldCheck, FileText, FileSpreadsheet } from 'lucide-react';
 import { ApexLogo } from '../common/ApexLogo.tsx';
+import { exportPayslipToPdf, exportPayslipToExcel } from '../../utils/exportDocument.ts';
 
 interface PayslipModalProps {
   isOpen: boolean;
@@ -16,12 +17,17 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
   onClose,
   record,
   currency = 'NLe ',
-  companyName = 'Apex Enterprise Solutions',
+  companyName = 'Apex Enterprise Solutions (SL) Ltd.',
 }) => {
   if (!isOpen || !record) return null;
 
-  const handlePrint = () => {
-    window.print();
+
+  const handleDownloadPdf = () => {
+    exportPayslipToPdf(record, { currency, companyName });
+  };
+
+  const handleDownloadExcel = () => {
+    exportPayslipToExcel(record, { currency, companyName });
   };
 
   const basic = parseFloat(record.basicSalary.toString() || '0');
@@ -35,18 +41,28 @@ export const PayslipModal: React.FC<PayslipModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-2 sm:p-4 backdrop-blur-xs">
       <div className="flex max-h-[95vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl">
         {/* Header Controls */}
-        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 px-4 sm:px-6 py-3 sm:py-3.5 print:hidden">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 px-4 sm:px-6 py-3 sm:py-3.5 print:hidden">
           <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
             Official Salary Payslip Statement
           </span>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-1.5 sm:space-x-2">
             <button
-              onClick={handlePrint}
-              className="flex items-center space-x-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white shadow-xs hover:bg-indigo-700 transition"
+              onClick={handleDownloadPdf}
+              title="Download official publication-grade PDF payslip"
+              className="flex items-center space-x-1 rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-1.5 text-xs font-medium text-indigo-700 dark:text-indigo-300 shadow-xs hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition"
             >
-              <Printer className="h-3.5 w-3.5" />
-              <span>Print / PDF</span>
+              <FileText className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+              <span className="hidden sm:inline">Download</span> PDF
             </button>
+            <button
+              onClick={handleDownloadExcel}
+              title="Download formatted Microsoft Excel (.xls) payslip workbook"
+              className="flex items-center space-x-1 rounded-lg border border-emerald-600/40 bg-emerald-500/10 px-2.5 py-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-300 shadow-xs hover:bg-emerald-500/20 transition"
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span className="hidden sm:inline">Download</span> Excel
+            </button>
+
             <button
               onClick={onClose}
               className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200 transition"

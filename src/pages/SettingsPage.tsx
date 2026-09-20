@@ -74,9 +74,9 @@ export const SettingsPage: React.FC = () => {
     <div className="space-y-6 max-w-4xl">
       {/* Header */}
       <div>
-        <h1 className="text-xl font-bold text-slate-900 dark:text-white">System Configuration</h1>
+        <h1 className="text-xl font-bold text-slate-900 dark:text-white">Settings</h1>
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          Global policies for attendance thresholds, overtime multiplier rates, and corporate branding
+          Policies, attendance rules, and branding.
         </p>
       </div>
 
@@ -92,12 +92,12 @@ export const SettingsPage: React.FC = () => {
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2 text-slate-900 dark:text-white font-bold text-sm">
             <Palette className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-            <h2>Appearance & Theme Preference</h2>
+            <h2>Appearance</h2>
           </div>
           <DarkModeToggle variant="segmented" />
         </div>
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          Select between light theme, dark mode, or match your system operating system preference.
+          Theme and display preferences.
         </p>
       </div>
 
@@ -106,7 +106,7 @@ export const SettingsPage: React.FC = () => {
         <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-xs space-y-4">
           <div className="flex items-center space-x-2 text-slate-900 dark:text-white font-bold text-sm">
             <Building2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-            <h2>Organization & Letterhead Details</h2>
+            <h2>Organization Details</h2>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

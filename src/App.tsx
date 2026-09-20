@@ -14,22 +14,23 @@ import { ReportsPage } from './pages/ReportsPage.tsx';
 import { UsersPage } from './pages/UsersPage.tsx';
 import { SettingsPage } from './pages/SettingsPage.tsx';
 import { ProfilePage } from './pages/ProfilePage.tsx';
-import { AIAssistantPage } from './pages/AIAssistantPage.tsx';
 import { NotificationCenterPage } from './pages/NotificationCenterPage.tsx';
-import { AIAssistantDrawer } from './components/ai/AIAssistantDrawer.tsx';
+import { AIAssistantPage } from './pages/AIAssistantPage.tsx';
 import { QRScannerModal } from './components/attendance/QRScannerModal.tsx';
 import { MobileBottomNav } from './components/layout/MobileBottomNav.tsx';
+import { ErrorBoundary } from './components/common/ErrorBoundary.tsx';
+import { AIFloatingWidget } from './components/ai/AIFloatingWidget.tsx';
 import { RefreshCw, ShieldAlert, ArrowLeft } from 'lucide-react';
 
 const PAGE_PERMISSIONS: Record<string, string[]> = {
   dashboard: ['Administrator', 'HR Officer', 'Payroll Officer', 'Employee', 'Management'],
+  'ai-assistant': ['Administrator', 'HR Officer', 'Payroll Officer', 'Employee', 'Management'],
   employees: ['Administrator', 'HR Officer', 'Management'],
   departments: ['Administrator', 'HR Officer', 'Management'],
   qrcodes: ['Administrator', 'HR Officer'],
   attendance: ['Administrator', 'HR Officer', 'Payroll Officer', 'Employee', 'Management'],
   payroll: ['Administrator', 'Payroll Officer', 'Management', 'Employee'],
   reports: ['Administrator', 'HR Officer', 'Payroll Officer', 'Management'],
-  'ai-assistant': ['Administrator', 'HR Officer', 'Payroll Officer', 'Employee', 'Management'],
   notifications: ['Administrator', 'HR Officer', 'Payroll Officer', 'Employee', 'Management'],
   users: ['Administrator'],
   settings: ['Administrator'],
@@ -42,6 +43,36 @@ const MainLayout: React.FC = () => {
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // Collapsible sidebar state with local storage persistence
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('apex_sidebar_collapsed') === 'true';
+    }
+    return false;
+  });
+
+  const toggleSidebarCollapse = () => {
+    setIsSidebarCollapsed((prev) => {
+      const next = !prev;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('apex_sidebar_collapsed', String(next));
+      }
+      return next;
+    });
+  };
+
+  // Keyboard shortcut Ctrl+B or Cmd+B to toggle sidebar collapse
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        toggleSidebarCollapse();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Track the logged in user ID to cleanly reset activePage on login, logout, or account switch
   const prevUserIdRef = React.useRef<string | null>(null);
@@ -98,6 +129,8 @@ const MainLayout: React.FC = () => {
             setActivePage={setActivePage}
           />
         );
+      case 'ai-assistant':
+        return <AIAssistantPage />;
       case 'employees':
         return <EmployeesPage />;
       case 'departments':
@@ -116,8 +149,6 @@ const MainLayout: React.FC = () => {
         return <SettingsPage />;
       case 'profile':
         return <ProfilePage />;
-      case 'ai-assistant':
-        return <AIAssistantPage />;
       case 'notifications':
         return <NotificationCenterPage onNavigate={setActivePage} />;
       default:
@@ -131,27 +162,39 @@ const MainLayout: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100/70 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col transition-colors duration-150">
-      {/* Top Navbar */}
-      <Navbar
-        onOpenScanner={() => setIsScannerOpen(true)}
+    <div className="relative h-screen w-screen bg-slate-100/90 dark:bg-[#040816] text-slate-900 dark:text-slate-100 font-sans p-2 sm:p-3 md:p-3.5 flex gap-3 md:gap-3.5 overflow-hidden transition-colors duration-150">
+      {/* 1. Bento Box: Sidebar / Navigation Menu */}
+      <Sidebar
         activePage={safeActivePage}
         setActivePage={setActivePage}
-        onToggleMobileSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
+        onRefreshData={() => setRefreshKey((k) => k + 1)}
+        isMobileOpen={isMobileSidebarOpen}
+        onCloseMobile={() => setIsMobileSidebarOpen(false)}
+        onOpenScanner={() => setIsScannerOpen(true)}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={toggleSidebarCollapse}
       />
 
-      {/* Main Workspace Layout with Sidebar */}
-      <div className="flex flex-1 overflow-hidden">
-        <Sidebar
+      {/* Right Column Bento Container: Top Navigation Bar + Main Content Area */}
+      <div className="relative z-10 flex-1 flex flex-col gap-3 md:gap-3.5 h-full min-w-0 overflow-hidden">
+        {/* 2. Bento Box: Top Navigation Bar */}
+        <Navbar
+          onOpenScanner={() => setIsScannerOpen(true)}
           activePage={safeActivePage}
           setActivePage={setActivePage}
-          onRefreshData={() => setRefreshKey((k) => k + 1)}
-          isMobileOpen={isMobileSidebarOpen}
-          onCloseMobile={() => setIsMobileSidebarOpen(false)}
+          onToggleMobileSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
         />
 
-        <main className="flex-1 overflow-y-auto p-3.5 sm:p-5 md:p-8 pb-24 md:pb-8" key={refreshKey}>
-          <div className="max-w-7xl mx-auto">{renderActivePage()}</div>
+        {/* 3. Bento Box: Main Content Area */}
+        <main
+          className="relative flex-1 w-full rounded-2xl md:rounded-3xl border border-cyan-500/20 dark:border-cyan-500/30 bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl shadow-[0_10px_35px_rgba(0,0,0,0.3),0_0_20px_rgba(6,182,212,0.08)] overflow-y-auto p-3.5 sm:p-5 md:p-6 pb-24 md:pb-6 transition-all"
+          key={refreshKey}
+        >
+          <div className="relative z-10 max-w-7xl mx-auto">
+            <ErrorBoundary fallbackTitle="View Display Interrupted">
+              {renderActivePage()}
+            </ErrorBoundary>
+          </div>
         </main>
       </div>
 
@@ -172,18 +215,23 @@ const MainLayout: React.FC = () => {
         }}
       />
 
-      {/* Persistent AI Copilot Assistant Drawer */}
-      <AIAssistantDrawer onOpenHub={() => setActivePage('ai-assistant')} />
+      {/* Global Floating AI Assistant Widget */}
+      <AIFloatingWidget
+        activePage={safeActivePage}
+        onNavigateToAIPage={() => setActivePage('ai-assistant')}
+      />
     </div>
   );
 };
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <MainLayout />
-      </AuthProvider>
-    </ThemeProvider>
+    <ErrorBoundary fallbackTitle="Apex Workspace Interrupted">
+      <ThemeProvider>
+        <AuthProvider>
+          <MainLayout />
+        </AuthProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }

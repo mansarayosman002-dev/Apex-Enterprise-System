@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { ApexLogo } from './ApexLogo.tsx';
 import logoImg from '../../assets/apex_logo.jpg';
-import { Building2, ShieldCheck, QrCode as QrIcon } from 'lucide-react';
+import { Building2, QrCode as QrIcon } from 'lucide-react';
 import { PHOTO_UPDATED_EVENT, EmployeePhotoUpdateDetail, withPhotoCacheBuster } from '../../utils/photoSync.ts';
+import { formatEmployeePosition } from '../../utils/exportDocument.ts';
 
 export interface EmployeeBadgeData {
   fullName: string;
@@ -156,11 +157,6 @@ export const EmployeeIDBadge: React.FC<EmployeeIDBadgeProps> = ({
               </p>
             </div>
           </div>
-
-          <span className="inline-flex items-center space-x-0.5 rounded-full bg-emerald-500/20 px-1.5 py-0.5 border border-emerald-400/30 text-emerald-300 font-mono text-[8px] font-bold uppercase">
-            <ShieldCheck className="h-2.5 w-2.5 shrink-0 text-emerald-400" />
-            <span>Verified</span>
-          </span>
         </div>
       </div>
 
@@ -217,11 +213,11 @@ export const EmployeeIDBadge: React.FC<EmployeeIDBadgeProps> = ({
             {badge.fullName}
           </h2>
 
-          {/* Job Title */}
+          {/* Job Title (Capitalized first letter of words) */}
           <p className={`font-bold text-cyan-400 truncate mt-0.5 ${
             isPrint ? 'text-[6pt]' : 'text-[11px] sm:text-xs'
           }`}>
-            {badge.jobTitle}
+            {formatEmployeePosition(badge.jobTitle)}
           </p>
 
           {/* Department */}
@@ -243,35 +239,21 @@ export const EmployeeIDBadge: React.FC<EmployeeIDBadgeProps> = ({
         </div>
       </div>
 
-      {/* BOTTOM SECTION: Official Scannable QR Code & Security Footer */}
-      <div className="w-full flex flex-col items-center relative z-10 pt-1">
-        {/* QR Code Container */}
-        <div className="rounded-lg bg-white p-1.5 shadow-md flex flex-col items-center border border-indigo-200">
+      {/* BOTTOM SECTION: Official Scannable QR Code (Enlarged size, with captions removed) */}
+      <div className="w-full flex flex-col items-center relative z-10 pt-1 pb-1">
+        {/* QR Code Container - Enlarged for Effortless Mobile Smartphone Scanning */}
+        <div className="rounded-xl bg-white p-2 shadow-md flex flex-col items-center border border-indigo-200/80">
           {badge.qrCodeUrl ? (
             <img
               src={badge.qrCodeUrl}
               alt={`QR Code ${badge.employeeId}`}
-              className={`${isPrint ? 'h-[16mm] w-[16mm]' : 'h-16 w-16 sm:h-18 sm:w-18'} object-contain`}
+              className={`${isPrint ? 'h-[25mm] w-[25mm]' : 'h-24 w-24 sm:h-28 sm:w-28'} object-contain`}
             />
           ) : (
-            <div className={`${isPrint ? 'h-[16mm] w-[16mm]' : 'h-16 w-16 sm:h-18 sm:w-18'} flex items-center justify-center bg-slate-100 text-slate-400`}>
-              <QrIcon className="h-8 w-8" />
+            <div className={`${isPrint ? 'h-[25mm] w-[25mm]' : 'h-24 w-24 sm:h-28 sm:w-28'} flex items-center justify-center bg-slate-100 text-slate-400`}>
+              <QrIcon className="h-10 w-10" />
             </div>
           )}
-        </div>
-        <span className={`font-mono text-indigo-300/80 font-bold uppercase tracking-widest mt-1 ${
-          isPrint ? 'text-[4pt]' : 'text-[8px]'
-        }`}>
-          Attendance & Security Token
-        </span>
-
-        {/* Corporate Micro Footer */}
-        <div className="w-full border-t border-indigo-500/20 mt-1 pt-1 text-center">
-          <p className={`font-mono text-slate-400 uppercase tracking-tighter truncate ${
-            isPrint ? 'text-[3.8pt]' : 'text-[7.5px]'
-          }`}>
-            {companyName} • 53.98 × 85.60 mm
-          </p>
         </div>
       </div>
     </div>
@@ -328,6 +310,9 @@ export function printEmployeeBadge(badge: EmployeeBadgeData) {
   <meta charset="utf-8" />
   <base href="${origin}/" />
   <title>ID Badge - ${badge.fullName} (${badge.employeeId})</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet" />
   <style>
     @page {
       size: 53.98mm 85.60mm portrait;
@@ -343,7 +328,7 @@ export function printEmployeeBadge(badge: EmployeeBadgeData) {
       padding: 0;
       width: 53.98mm;
       height: 85.60mm;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       background: #ffffff;
       display: flex;
       justify-content: center;
@@ -398,19 +383,13 @@ export function printEmployeeBadge(badge: EmployeeBadgeData) {
     }
     .header-sub {
       font-size: 4.5pt;
-      color: #a5b4fc;
+      color: #94a3b8;
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
-    .verified-pill {
-      font-size: 5pt;
-      font-weight: 700;
-      color: #6ee7b7;
-      background: rgba(16, 185, 129, 0.2);
-      border: 0.2mm solid rgba(16, 185, 129, 0.4);
-      padding: 0.5mm 1.5mm;
-      border-radius: 2mm;
-      text-transform: uppercase;
+    .photo-container {
+      position: relative;
+      margin: 1.2mm 0;
     }
     .photo-frame {
       width: 23mm;
@@ -419,11 +398,27 @@ export function printEmployeeBadge(badge: EmployeeBadgeData) {
       border-radius: 2.2mm;
       overflow: hidden;
       background: #1e293b;
-      margin: 1.2mm 0;
       display: flex;
       justify-content: center;
       align-items: center;
       box-shadow: 0 1mm 2mm rgba(0,0,0,0.3);
+    }
+    .photo-badge-sl {
+      position: absolute;
+      bottom: -0.6mm;
+      right: -0.6mm;
+      width: 3.8mm;
+      height: 3.8mm;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%);
+      border: 0.25mm solid #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 4.2pt;
+      font-weight: 900;
+      color: #ffffff;
+      box-shadow: 0 0.5mm 1mm rgba(0,0,0,0.3);
     }
     .photo-img {
       width: 100%;
@@ -461,7 +456,10 @@ export function printEmployeeBadge(badge: EmployeeBadgeData) {
     .emp-dept {
       font-size: 5.2pt;
       color: #cbd5e1;
-      text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 1mm;
       margin: 0.4mm 0 0 0;
     }
     .emp-id-pill {
@@ -478,38 +476,18 @@ export function printEmployeeBadge(badge: EmployeeBadgeData) {
     }
     .qr-box {
       background: #ffffff;
-      padding: 1mm;
-      border-radius: 1.8mm;
+      padding: 1.2mm;
+      border-radius: 2mm;
       box-shadow: 0 1mm 2mm rgba(0,0,0,0.2);
       display: flex;
       justify-content: center;
       align-items: center;
     }
     .qr-img {
-      width: 17mm;
-      height: 17mm;
+      width: 23mm;
+      height: 23mm;
       object-fit: contain;
       display: block;
-    }
-    .qr-caption {
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 4pt;
-      color: #a5b4fc;
-      text-transform: uppercase;
-      letter-spacing: 0.4px;
-      margin-top: 0.6mm;
-      font-weight: 700;
-    }
-    .footer {
-      width: 100%;
-      border-top: 0.2mm solid rgba(99, 102, 241, 0.25);
-      padding-top: 0.8mm;
-      text-align: center;
-      font-size: 4pt;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      color: #94a3b8;
-      text-transform: uppercase;
-      letter-spacing: 0.2px;
     }
   </style>
 </head>
@@ -519,27 +497,37 @@ export function printEmployeeBadge(badge: EmployeeBadgeData) {
       <div class="slot"></div>
       <div class="header">
         <div class="header-logo">
+          ${
+            resolvedLogo
+              ? `<img src="${resolvedLogo}" style="width: 4.2mm; height: 4.2mm; border-radius: 1mm; object-fit: cover; border: 0.2mm solid #22d3ee;" alt="Logo" />`
+              : ''
+          }
           <div style="text-align: left; line-height: 1;">
             <div class="header-title">APEX<span>ENTERPRISE</span></div>
-            <div class="header-sub">Corporate ID Card</div>
+            <div class="header-sub">SECURITY ID</div>
           </div>
         </div>
-        <div class="verified-pill">Verified Pass</div>
       </div>
     </div>
 
     <div style="width: 100%; display: flex; flex-direction: column; align-items: center;">
-      <div class="photo-frame">
-        ${
-          resolvedPhoto
-            ? `<img src="${resolvedPhoto}" class="photo-img" alt="Photo" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';" />
-               <div class="photo-placeholder" style="display:none;">${initials}</div>`
-            : `<div class="photo-placeholder">${initials}</div>`
-        }
+      <div class="photo-container">
+        <div class="photo-frame">
+          ${
+            resolvedPhoto
+              ? `<img src="${resolvedPhoto}" class="photo-img" alt="Photo" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';" />
+                 <div class="photo-placeholder" style="display:none;">${initials}</div>`
+              : `<div class="photo-placeholder">${initials}</div>`
+          }
+        </div>
+        <div class="photo-badge-sl">SL</div>
       </div>
       <div class="emp-name">${badge.fullName}</div>
-      <div class="emp-title">${badge.jobTitle}</div>
-      <div class="emp-dept">${badge.department}</div>
+      <div class="emp-title">${formatEmployeePosition(badge.jobTitle)}</div>
+      <div class="emp-dept">
+        <svg width="2.4mm" height="2.4mm" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect><path d="M9 22v-4h6v4"></path><path d="M8 6h.01"></path><path d="M16 6h.01"></path><path d="M8 10h.01"></path><path d="M16 10h.01"></path><path d="M8 14h.01"></path><path d="M16 14h.01"></path></svg>
+        <span>${badge.department}</span>
+      </div>
       <div>
         <span class="emp-id-pill">ID: ${badge.employeeId}</span>
       </div>
@@ -550,12 +538,8 @@ export function printEmployeeBadge(badge: EmployeeBadgeData) {
         ${
           resolvedQr || badge.qrCodeUrl
             ? `<img src="${resolvedQr || badge.qrCodeUrl}" class="qr-img" alt="QR" />`
-            : `<div style="width:17mm;height:17mm;background:#f1f5f9;display:flex;align-items:center;justify-content:center;font-size:5pt;color:#64748b;">QR TOKEN</div>`
+            : `<div style="width:23mm;height:23mm;background:#f1f5f9;display:flex;align-items:center;justify-content:center;font-size:5pt;color:#64748b;">QR TOKEN</div>`
         }
-      </div>
-      <div class="qr-caption">Encrypted Attendance Token</div>
-      <div class="footer">
-        Apex Enterprise (SL) Ltd • Portrait 53.98 × 85.60 mm
       </div>
     </div>
   </div>
@@ -639,27 +623,37 @@ export function printAllBadgesSheet(badges: EmployeeBadgeData[]) {
         <div class="slot"></div>
         <div class="header">
           <div class="header-logo">
+            ${
+              resolvedLogo
+                ? `<img src="${resolvedLogo}" style="width: 3.8mm; height: 3.8mm; border-radius: 0.8mm; object-fit: cover; border: 0.2mm solid #22d3ee;" alt="Logo" />`
+                : ''
+            }
             <div style="text-align: left; line-height: 1;">
               <div class="header-title">APEX<span>ENTERPRISE</span></div>
-              <div class="header-sub">Corporate ID Card</div>
+              <div class="header-sub">SECURITY ID</div>
             </div>
           </div>
-          <div class="verified-pill">Verified</div>
         </div>
       </div>
 
       <div style="width: 100%; display: flex; flex-direction: column; align-items: center;">
-        <div class="photo-frame">
-          ${
-            resolvedPhoto
-              ? `<img src="${resolvedPhoto}" class="photo-img" alt="Photo" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';" />
-                 <div class="photo-placeholder" style="display:none;">${initials}</div>`
-              : `<div class="photo-placeholder">${initials}</div>`
-          }
+        <div class="photo-container">
+          <div class="photo-frame">
+            ${
+              resolvedPhoto
+                ? `<img src="${resolvedPhoto}" class="photo-img" alt="Photo" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';" />
+                   <div class="photo-placeholder" style="display:none;">${initials}</div>`
+                : `<div class="photo-placeholder">${initials}</div>`
+            }
+          </div>
+          <div class="photo-badge-sl">SL</div>
         </div>
         <div class="emp-name">${b.fullName}</div>
-        <div class="emp-title">${b.jobTitle}</div>
-        <div class="emp-dept">${b.department}</div>
+        <div class="emp-title">${formatEmployeePosition(b.jobTitle)}</div>
+        <div class="emp-dept">
+          <svg width="2.2mm" height="2.2mm" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect><path d="M9 22v-4h6v4"></path><path d="M8 6h.01"></path><path d="M16 6h.01"></path><path d="M8 10h.01"></path><path d="M16 10h.01"></path><path d="M8 14h.01"></path><path d="M16 14h.01"></path></svg>
+          <span>${b.department}</span>
+        </div>
         <div>
           <span class="emp-id-pill">ID: ${b.employeeId}</span>
         </div>
@@ -670,12 +664,8 @@ export function printAllBadgesSheet(badges: EmployeeBadgeData[]) {
           ${
             resolvedQr || b.qrCodeUrl
               ? `<img src="${resolvedQr || b.qrCodeUrl}" class="qr-img" alt="QR" />`
-              : `<div style="width:16mm;height:16mm;background:#f1f5f9;display:flex;align-items:center;justify-content:center;font-size:5pt;color:#64748b;">QR</div>`
+              : `<div style="width:23mm;height:23mm;background:#f1f5f9;display:flex;align-items:center;justify-content:center;font-size:5pt;color:#64748b;">QR</div>`
           }
-        </div>
-        <div class="qr-caption">Encrypted Attendance Token</div>
-        <div class="footer">
-          Apex Enterprise (SL) Ltd • 53.98 × 85.60 mm
         </div>
       </div>
     </div>`;
@@ -688,6 +678,9 @@ export function printAllBadgesSheet(badges: EmployeeBadgeData[]) {
   <meta charset="utf-8" />
   <base href="${origin}/" />
   <title>Apex Enterprise - Batch ID Badges</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet" />
   <style>
     @page {
       size: A4 portrait;
@@ -701,7 +694,7 @@ export function printAllBadgesSheet(badges: EmployeeBadgeData[]) {
     html, body {
       margin: 0;
       padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background: #ffffff;
     }
     .sheet-grid {
@@ -759,19 +752,13 @@ export function printAllBadgesSheet(badges: EmployeeBadgeData[]) {
     }
     .header-sub {
       font-size: 4pt;
-      color: #a5b4fc;
+      color: #94a3b8;
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
-    .verified-pill {
-      font-size: 4.5pt;
-      font-weight: 700;
-      color: #6ee7b7;
-      background: rgba(16, 185, 129, 0.2);
-      border: 0.2mm solid rgba(16, 185, 129, 0.4);
-      padding: 0.4mm 1.2mm;
-      border-radius: 1.5mm;
-      text-transform: uppercase;
+    .photo-container {
+      position: relative;
+      margin: 1mm 0;
     }
     .photo-frame {
       width: 22mm;
@@ -780,10 +767,25 @@ export function printAllBadgesSheet(badges: EmployeeBadgeData[]) {
       border-radius: 2mm;
       overflow: hidden;
       background: #1e293b;
-      margin: 1mm 0;
       display: flex;
       justify-content: center;
       align-items: center;
+    }
+    .photo-badge-sl {
+      position: absolute;
+      bottom: -0.5mm;
+      right: -0.5mm;
+      width: 3.5mm;
+      height: 3.5mm;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%);
+      border: 0.25mm solid #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 3.8pt;
+      font-weight: 900;
+      color: #ffffff;
     }
     .photo-img {
       width: 100%;
@@ -821,7 +823,10 @@ export function printAllBadgesSheet(badges: EmployeeBadgeData[]) {
     .emp-dept {
       font-size: 5pt;
       color: #cbd5e1;
-      text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.8mm;
       margin: 0.4mm 0 0 0;
     }
     .emp-id-pill {
@@ -838,35 +843,17 @@ export function printAllBadgesSheet(badges: EmployeeBadgeData[]) {
     }
     .qr-box {
       background: #ffffff;
-      padding: 0.8mm;
-      border-radius: 1.6mm;
+      padding: 1mm;
+      border-radius: 1.8mm;
       display: flex;
       justify-content: center;
       align-items: center;
     }
     .qr-img {
-      width: 16mm;
-      height: 16mm;
+      width: 23mm;
+      height: 23mm;
       object-fit: contain;
       display: block;
-    }
-    .qr-caption {
-      font-family: ui-monospace, monospace;
-      font-size: 3.8pt;
-      color: #a5b4fc;
-      text-transform: uppercase;
-      margin-top: 0.5mm;
-      font-weight: 700;
-    }
-    .footer {
-      width: 100%;
-      border-top: 0.2mm solid rgba(99, 102, 241, 0.25);
-      padding-top: 0.6mm;
-      text-align: center;
-      font-size: 3.8pt;
-      font-family: ui-monospace, monospace;
-      color: #94a3b8;
-      text-transform: uppercase;
     }
   </style>
 </head>

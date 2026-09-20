@@ -5,19 +5,17 @@ import {
   CalendarCheck,
   ScanLine,
   Plus,
-  Download,
   Filter,
   RefreshCw,
   Clock,
   User,
   Building,
   CheckCircle2,
-  Upload,
 } from 'lucide-react';
 import { ManualAttendanceModal } from '../components/attendance/ManualAttendanceModal.tsx';
 import { AttendanceImportModal } from '../components/attendance/AttendanceImportModal.tsx';
-import { exportTableToCsv, exportTableToPdf } from '../utils/exportDocument.ts';
-import { FileText } from 'lucide-react';
+import { exportTableToExcel, exportTableToPdf } from '../utils/exportDocument.ts';
+import { FileText, FileSpreadsheet } from 'lucide-react';
 
 interface AttendancePageProps {
   onOpenScanner: () => void;
@@ -62,9 +60,12 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ onOpenScanner })
     }
   };
 
-  const exportCSV = () => {
+  const exportExcel = () => {
     if (attendance.length === 0) return;
-    exportTableToCsv({
+    const totalWorkingHours = attendance.reduce((acc, a) => acc + (parseFloat(a.workingHours?.toString() || '0') || 0), 0);
+    const totalOvertimeHours = attendance.reduce((acc, a) => acc + (parseFloat(a.overtimeHours?.toString() || '0') || 0), 0);
+
+    exportTableToExcel({
       title: 'Attendance Tracking Ledger',
       subtitle: 'Real-time automated check-in timestamps, working hours, and overtime computation',
       filenamePrefix: 'attendance_ledger',
@@ -73,6 +74,8 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ onOpenScanner })
         'Filter Department': departments.find((d) => String(d.id) === filterDept)?.departmentName || 'All Departments',
         'Filter Status': filterStatus || 'All Statuses',
         'Total Headcount': attendance.length,
+        'Total Working Hours': `${totalWorkingHours.toFixed(1)} hrs`,
+        'Total Overtime Hours': `${totalOvertimeHours.toFixed(1)} hrs`,
       },
       headers: ['Employee Code', 'Employee Name', 'Department', 'Date', 'Check In', 'Check Out', 'Working Hours', 'Overtime Hours', 'Status', 'Notes'],
       rows: attendance.map((a) => [
@@ -87,11 +90,26 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ onOpenScanner })
         a.status,
         a.notes || '',
       ]),
+      summaryRow: [
+        'TOTALS',
+        `Headcount: ${attendance.length}`,
+        '',
+        '',
+        '',
+        '',
+        totalWorkingHours.toFixed(2),
+        totalOvertimeHours.toFixed(2),
+        '',
+        '',
+      ],
     });
   };
 
   const exportPDF = () => {
     if (attendance.length === 0) return;
+    const totalWorkingHours = attendance.reduce((acc, a) => acc + (parseFloat(a.workingHours?.toString() || '0') || 0), 0);
+    const totalOvertimeHours = attendance.reduce((acc, a) => acc + (parseFloat(a.overtimeHours?.toString() || '0') || 0), 0);
+
     exportTableToPdf({
       title: 'Attendance Tracking Ledger',
       subtitle: 'Real-time automated check-in timestamps, working hours, and overtime computation',
@@ -100,6 +118,8 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ onOpenScanner })
         'Date': filterDate || 'All Dates',
         'Department': departments.find((d) => String(d.id) === filterDept)?.departmentName || 'All Departments',
         'Status': filterStatus || 'All Statuses',
+        'Total Hours': `${totalWorkingHours.toFixed(1)} hrs`,
+        'Total Overtime': `${totalOvertimeHours.toFixed(1)} hrs`,
       },
       headers: ['Code', 'Employee Name', 'Department', 'Date', 'In', 'Out', 'Hours', 'OT', 'Status'],
       rows: attendance.map((a) => [
@@ -113,6 +133,17 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ onOpenScanner })
         a.overtimeHours,
         a.status,
       ]),
+      summaryRow: [
+        'TOTALS',
+        `Headcount: ${attendance.length}`,
+        '',
+        '',
+        '',
+        '',
+        totalWorkingHours.toFixed(1),
+        totalOvertimeHours.toFixed(1),
+        '',
+      ],
     });
   };
 
@@ -121,30 +152,22 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ onOpenScanner })
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 dark:text-white">Attendance Tracking Ledger</h1>
+          <h1 className="text-xl font-bold text-slate-900 dark:text-white">Attendance</h1>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Real-time automated check-in timestamps, working hours, and overtime computation
+            Daily check-ins, shift hours, and overtime tracking.
           </p>
         </div>
 
         {/* Actions */}
         <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={() => setIsImportModalOpen(true)}
-            className="flex items-center justify-center space-x-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 sm:px-3.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-2xs transition"
+            onClick={exportExcel}
+            title="Download formatted Microsoft Excel Workbook (.xls)"
+            className="flex items-center justify-center space-x-1.5 rounded-xl border border-emerald-600/30 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 sm:px-3 py-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 shadow-2xs transition"
           >
-            <Upload className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-            <span className="hidden sm:inline">Upload Attendance (Auto-Upsert)</span>
-            <span className="sm:hidden">Upload</span>
-          </button>
-          <button
-            onClick={exportCSV}
-            title="Download formatted Excel CSV ledger"
-            className="flex items-center justify-center space-x-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 sm:px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-2xs transition"
-          >
-            <Download className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-            <span className="hidden sm:inline">Export CSV</span>
-            <span className="sm:hidden">CSV</span>
+            <FileSpreadsheet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <span className="hidden sm:inline">Export Excel</span>
+            <span className="sm:hidden">Excel</span>
           </button>
           <button
             onClick={exportPDF}
@@ -168,7 +191,7 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ onOpenScanner })
             className="flex items-center justify-center space-x-1.5 rounded-xl bg-indigo-600 px-3.5 sm:px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-indigo-700 transition"
           >
             <ScanLine className="h-4 w-4" />
-            <span className="hidden sm:inline">Open Terminal Scanner</span>
+            <span className="hidden sm:inline">Terminal Scanner</span>
             <span className="sm:hidden">Scanner</span>
           </button>
         </div>
@@ -178,7 +201,7 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ onOpenScanner })
       <div className="flex flex-col sm:flex-row gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xs">
         {/* Date */}
         <div className="flex-1">
-          <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">Filter by Date</label>
+          <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">Date</label>
           <input
             type="date"
             value={filterDate}
@@ -206,7 +229,7 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ onOpenScanner })
 
         {/* Status */}
         <div className="flex-1">
-          <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">Attendance Status</label>
+          <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">Status</label>
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
@@ -265,17 +288,16 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ onOpenScanner })
                       </div>
                     </div>
                     <span
-                      className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold shrink-0 ${
-                        rec.status === 'Present'
-                          ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300'
-                          : rec.status === 'Late'
+                      className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold shrink-0 ${rec.status === 'Present'
+                        ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300'
+                        : rec.status === 'Late'
                           ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300'
                           : rec.status === 'Overtime'
-                          ? 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-800 dark:text-indigo-300'
-                          : rec.status === 'Absent'
-                          ? 'bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-300'
-                      }`}
+                            ? 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-800 dark:text-indigo-300'
+                            : rec.status === 'Absent'
+                              ? 'bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-300'
+                        }`}
                     >
                       {rec.status}
                     </span>
@@ -356,17 +378,16 @@ export const AttendancePage: React.FC<AttendancePageProps> = ({ onOpenScanner })
                       </td>
                       <td className="px-4 py-3">
                         <span
-                          className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
-                            rec.status === 'Present'
-                              ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300'
-                              : rec.status === 'Late'
+                          className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${rec.status === 'Present'
+                            ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300'
+                            : rec.status === 'Late'
                               ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300'
                               : rec.status === 'Overtime'
-                              ? 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-800 dark:text-indigo-300'
-                              : rec.status === 'Absent'
-                              ? 'bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300'
-                              : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-300'
-                          }`}
+                                ? 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-800 dark:text-indigo-300'
+                                : rec.status === 'Absent'
+                                  ? 'bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300'
+                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-300'
+                            }`}
                         >
                           {rec.status}
                         </span>

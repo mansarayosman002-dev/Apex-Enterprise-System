@@ -261,6 +261,150 @@ export const auditLogs = pgTable(
 );
 
 // ==========================================
+// 11. AI CONVERSATIONS TABLE
+// ==========================================
+export const aiConversations = pgTable(
+  'ai_conversations',
+  {
+    id: serial('id').primaryKey(),
+    userId: integer('user_id')
+      .references(() => users.id, { onDelete: 'cascade' })
+      .notNull(),
+    title: text('title').notNull().default('New Chat'),
+    roleName: text('role_name').notNull().default('Employee'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    userIdx: index('idx_ai_conversations_user').on(table.userId),
+    createdAtIdx: index('idx_ai_conversations_created').on(table.createdAt),
+  })
+);
+
+// ==========================================
+// 12. AI MESSAGES TABLE
+// ==========================================
+export const aiMessages = pgTable(
+  'ai_messages',
+  {
+    id: serial('id').primaryKey(),
+    conversationId: integer('conversation_id')
+      .references(() => aiConversations.id, { onDelete: 'cascade' })
+      .notNull(),
+    role: text('role').notNull(), // 'user', 'assistant', 'system', 'tool'
+    content: text('content').notNull().default(''),
+    toolCalls: text('tool_calls'), // JSON stringified tool requests
+    toolCallId: text('tool_call_id'),
+    toolName: text('tool_name'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    convIdx: index('idx_ai_messages_conv').on(table.conversationId),
+    createdAtIdx: index('idx_ai_messages_created').on(table.createdAt),
+  })
+);
+
+// ==========================================
+// 13. AI ACTIVITY LOGS TABLE
+// ==========================================
+export const aiActivityLogs = pgTable(
+  'ai_activity_logs',
+  {
+    id: serial('id').primaryKey(),
+    userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+    username: text('username'),
+    role: text('role'),
+    operation: text('operation').notNull(), // 'chat_query', 'tool_execution', 'automation_trigger', 'notification_dispatched'
+    toolInvoked: text('tool_invoked'),
+    targetEntity: text('target_entity'), // 'employees', 'attendance', 'payroll', 'notifications'
+    entityId: text('entity_id'),
+    status: text('status').notNull().default('success'), // 'success', 'denied', 'failed', 'confirmed'
+    details: text('details'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    userIdx: index('idx_ai_activity_user').on(table.userId),
+    opIdx: index('idx_ai_activity_op').on(table.operation),
+    createdIdx: index('idx_ai_activity_created').on(table.createdAt),
+  })
+);
+
+// ==========================================
+// 14. AI AUTOMATIONS TABLE
+// ==========================================
+export const aiAutomations = pgTable(
+  'ai_automations',
+  {
+    id: serial('id').primaryKey(),
+    name: text('name').notNull(),
+    description: text('description'),
+    triggerType: text('trigger_type').notNull(), // 'scheduled_time', 'missing_check_in', 'employee_late', 'missing_check_out', 'overtime_detected', 'payroll_processed', 'payroll_approved', 'manual_trigger'
+    triggerConfig: text('trigger_config'), // JSON configuration string
+    conditionConfig: text('condition_config'), // JSON conditions string
+    actionConfig: text('action_config'), // JSON action specification string
+    channel: text('channel').notNull().default('in_app'),
+    isActive: boolean('is_active').notNull().default(false),
+    createdBy: integer('created_by').references(() => users.id, { onDelete: 'set null' }),
+    lastRunAt: timestamp('last_run_at'),
+    nextRunAt: timestamp('next_run_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    activeIdx: index('idx_ai_automations_active').on(table.isActive),
+    triggerIdx: index('idx_ai_automations_trigger').on(table.triggerType),
+  })
+);
+
+// ==========================================
+// 15. AI AUTOMATION EXECUTIONS TABLE
+// ==========================================
+export const aiAutomationExecutions = pgTable(
+  'ai_automation_executions',
+  {
+    id: serial('id').primaryKey(),
+    automationId: integer('automation_id')
+      .references(() => aiAutomations.id, { onDelete: 'cascade' })
+      .notNull(),
+    triggeredBy: text('triggered_by').notNull(), // 'scheduler', 'event', 'manual_test'
+    status: text('status').notNull().default('success'), // 'success', 'partial', 'failed'
+    summary: text('summary'),
+    affectedCount: integer('affected_count').default(0),
+    errorDetails: text('error_details'),
+    executedAt: timestamp('executed_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    autoIdx: index('idx_ai_exec_automation').on(table.automationId),
+    executedIdx: index('idx_ai_exec_time').on(table.executedAt),
+  })
+);
+
+// ==========================================
+// 16. AI ANOMALIES TABLE
+// ==========================================
+export const aiAnomalies = pgTable(
+  'ai_anomalies',
+  {
+    id: serial('id').primaryKey(),
+    anomalyType: text('anomaly_type').notNull(), // 'excessive_overtime', 'missing_checkout', 'repeated_tardiness', 'duplicate_scan_attempt', 'payroll_discrepancy'
+    severity: text('severity').notNull().default('MEDIUM'), // 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'
+    entityType: text('entity_type').notNull(), // 'attendance', 'payroll', 'employee'
+    entityId: text('entity_id'),
+    description: text('description').notNull(),
+    details: text('details'),
+    status: text('status').notNull().default('open'), // 'open', 'investigating', 'resolved', 'dismissed'
+    detectedAt: timestamp('detected_at').defaultNow().notNull(),
+    resolvedAt: timestamp('resolved_at'),
+    resolvedBy: integer('resolved_by').references(() => users.id, { onDelete: 'set null' }),
+  },
+  (table) => ({
+    statusIdx: index('idx_ai_anomalies_status').on(table.status),
+    severityIdx: index('idx_ai_anomalies_severity').on(table.severity),
+    detectedIdx: index('idx_ai_anomalies_detected').on(table.detectedAt),
+  })
+);
+
+// ==========================================
 // RELATIONS
 // ==========================================
 
@@ -343,75 +487,7 @@ export const payrollRelations = relations(payroll, ({ one }) => ({
 }));
 
 // ==========================================
-// 11. AI CONVERSATIONS TABLE
-// ==========================================
-export const aiConversations = pgTable(
-  'ai_conversations',
-  {
-    id: serial('id').primaryKey(),
-    userId: integer('user_id')
-      .references(() => users.id, { onDelete: 'cascade' })
-      .notNull(),
-    title: text('title').notNull().default('New Chat'),
-    roleName: text('role_name').notNull().default('Employee'),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
-    updatedAt: timestamp('updated_at').defaultNow().notNull(),
-  },
-  (table) => ({
-    userIdx: index('idx_ai_conversations_user').on(table.userId),
-    createdAtIdx: index('idx_ai_conversations_created').on(table.createdAt),
-  })
-);
-
-// ==========================================
-// 12. AI MESSAGES TABLE
-// ==========================================
-export const aiMessages = pgTable(
-  'ai_messages',
-  {
-    id: serial('id').primaryKey(),
-    conversationId: integer('conversation_id')
-      .references(() => aiConversations.id, { onDelete: 'cascade' })
-      .notNull(),
-    role: text('role').notNull(), // 'user', 'assistant', 'system', 'tool'
-    content: text('content').notNull().default(''),
-    toolCalls: text('tool_calls'), // JSON stringified tool requests
-    toolCallId: text('tool_call_id'),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
-  },
-  (table) => ({
-    convIdx: index('idx_ai_messages_conversation').on(table.conversationId),
-    createdAtIdx: index('idx_ai_messages_created').on(table.createdAt),
-  })
-);
-
-// ==========================================
-// 13. AI ACTIVITY LOGS TABLE (AUDIT TRAIL)
-// ==========================================
-export const aiActivityLogs = pgTable(
-  'ai_activity_logs',
-  {
-    id: serial('id').primaryKey(),
-    userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
-    username: text('username'),
-    role: text('role'),
-    operation: text('operation').notNull(), // 'chat_query', 'tool_execution', 'automation_trigger', 'notification_dispatched'
-    toolInvoked: text('tool_invoked'),
-    targetEntity: text('target_entity'), // 'employees', 'attendance', 'payroll', 'notifications'
-    entityId: text('entity_id'),
-    status: text('status').notNull().default('success'), // 'success', 'denied', 'failed', 'confirmed'
-    details: text('details'),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
-  },
-  (table) => ({
-    userIdx: index('idx_ai_activity_user').on(table.userId),
-    opIdx: index('idx_ai_activity_op').on(table.operation),
-    createdIdx: index('idx_ai_activity_created').on(table.createdAt),
-  })
-);
-
-// ==========================================
-// 14. NOTIFICATIONS TABLE
+// 11. NOTIFICATIONS TABLE
 // ==========================================
 export const notifications = pgTable(
   'notifications',
@@ -503,6 +579,35 @@ export const notificationTemplates = pgTable(
 );
 
 // ==========================================
+// 14D. NOTIFICATION REPLIES TABLE
+// ==========================================
+export const notificationReplies = pgTable(
+  'notification_replies',
+  {
+    id: serial('id').primaryKey(),
+    notificationId: integer('notification_id')
+      .references(() => notifications.id, { onDelete: 'cascade' })
+      .notNull(),
+    userId: integer('user_id')
+      .references(() => users.id, { onDelete: 'cascade' })
+      .notNull(),
+    employeeId: integer('employee_id')
+      .references(() => employees.id, { onDelete: 'set null' }),
+    senderName: text('sender_name').notNull(),
+    senderRole: text('sender_role').notNull().default('Employee'),
+    message: text('message').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    notifIdx: index('idx_notif_replies_nid').on(table.notificationId),
+    userIdx: index('idx_notif_replies_uid').on(table.userId),
+    empIdx: index('idx_notif_replies_eid').on(table.employeeId),
+    createdIdx: index('idx_notif_replies_created').on(table.createdAt),
+  })
+);
+
+// ==========================================
 // 15. NOTIFICATION PREFERENCES TABLE
 // ==========================================
 export const notificationPreferences = pgTable(
@@ -532,80 +637,51 @@ export const notificationPreferences = pgTable(
   })
 );
 
-// ==========================================
-// 16. AI AUTOMATIONS TABLE
-// ==========================================
-export const aiAutomations = pgTable(
-  'ai_automations',
-  {
-    id: serial('id').primaryKey(),
-    name: text('name').notNull(),
-    description: text('description'),
-    triggerType: text('trigger_type').notNull(), // 'scheduled_time', 'missing_check_in', 'employee_late', 'missing_check_out', 'overtime_detected', 'payroll_processed', 'payroll_approved', 'manual_trigger'
-    triggerConfig: text('trigger_config'), // JSON configuration string
-    conditionConfig: text('condition_config'), // JSON conditions string
-    actionConfig: text('action_config'), // JSON action specification string
-    channel: text('channel').notNull().default('in_app'),
-    isActive: boolean('is_active').notNull().default(false), // disabled by default
-    createdBy: integer('created_by').references(() => users.id, { onDelete: 'set null' }),
-    lastRunAt: timestamp('last_run_at'),
-    nextRunAt: timestamp('next_run_at'),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
-    updatedAt: timestamp('updated_at').defaultNow().notNull(),
-  },
-  (table) => ({
-    activeIdx: index('idx_ai_automations_active').on(table.isActive),
-    triggerIdx: index('idx_ai_automations_trigger').on(table.triggerType),
-  })
-);
+// Notifications Relations
+export const notificationsRelations = relations(notifications, ({ one, many }) => ({
+  user: one(users, {
+    fields: [notifications.userId],
+    references: [users.id],
+  }),
+  employee: one(employees, {
+    fields: [notifications.employeeId],
+    references: [employees.id],
+  }),
+  deliveries: many(notificationDeliveries),
+  replies: many(notificationReplies),
+}));
 
-// ==========================================
-// 17. AI AUTOMATION EXECUTIONS TABLE
-// ==========================================
-export const aiAutomationExecutions = pgTable(
-  'ai_automation_executions',
-  {
-    id: serial('id').primaryKey(),
-    automationId: integer('automation_id')
-      .references(() => aiAutomations.id, { onDelete: 'cascade' })
-      .notNull(),
-    triggeredBy: text('triggered_by').notNull(), // 'scheduler', 'event', 'manual_test'
-    status: text('status').notNull().default('success'), // 'success', 'partial', 'failed'
-    summary: text('summary'),
-    affectedCount: integer('affected_count').default(0),
-    errorDetails: text('error_details'),
-    executedAt: timestamp('executed_at').defaultNow().notNull(),
-  },
-  (table) => ({
-    autoIdx: index('idx_ai_exec_automation').on(table.automationId),
-    executedIdx: index('idx_ai_exec_time').on(table.executedAt),
-  })
-);
+// Notification Deliveries Relations
+export const notificationDeliveriesRelations = relations(notificationDeliveries, ({ one }) => ({
+  notification: one(notifications, {
+    fields: [notificationDeliveries.notificationId],
+    references: [notifications.id],
+  }),
+}));
 
-// ==========================================
-// 18. AI ANOMALIES TABLE
-// ==========================================
-export const aiAnomalies = pgTable(
-  'ai_anomalies',
-  {
-    id: serial('id').primaryKey(),
-    anomalyType: text('anomaly_type').notNull(), // 'excessive_overtime', 'missing_checkout', 'repeated_tardiness', 'duplicate_scan_attempt', 'payroll_discrepancy'
-    severity: text('severity').notNull().default('MEDIUM'), // 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'
-    entityType: text('entity_type').notNull(), // 'attendance', 'payroll', 'employee'
-    entityId: text('entity_id'),
-    description: text('description').notNull(),
-    details: text('details'),
-    status: text('status').notNull().default('open'), // 'open', 'investigating', 'resolved', 'dismissed'
-    detectedAt: timestamp('detected_at').defaultNow().notNull(),
-    resolvedAt: timestamp('resolved_at'),
-    resolvedBy: integer('resolved_by').references(() => users.id, { onDelete: 'set null' }),
-  },
-  (table) => ({
-    statusIdx: index('idx_ai_anomalies_status').on(table.status),
-    severityIdx: index('idx_ai_anomalies_severity').on(table.severity),
-    detectedIdx: index('idx_ai_anomalies_detected').on(table.detectedAt),
-  })
-);
+// Notification Replies Relations
+export const notificationRepliesRelations = relations(notificationReplies, ({ one }) => ({
+  notification: one(notifications, {
+    fields: [notificationReplies.notificationId],
+    references: [notifications.id],
+  }),
+  user: one(users, {
+    fields: [notificationReplies.userId],
+    references: [users.id],
+  }),
+  employee: one(employees, {
+    fields: [notificationReplies.employeeId],
+    references: [employees.id],
+  }),
+}));
+
+// Notification Preferences Relations
+export const notificationPreferencesRelations = relations(notificationPreferences, ({ one }) => ({
+  employee: one(employees, {
+    fields: [notificationPreferences.employeeId],
+    references: [employees.id],
+  }),
+}));
 
 // AI Conversations Relations
 export const aiConversationsRelations = relations(aiConversations, ({ one, many }) => ({
@@ -629,35 +705,6 @@ export const aiActivityLogsRelations = relations(aiActivityLogs, ({ one }) => ({
   user: one(users, {
     fields: [aiActivityLogs.userId],
     references: [users.id],
-  }),
-}));
-
-// Notifications Relations
-export const notificationsRelations = relations(notifications, ({ one, many }) => ({
-  user: one(users, {
-    fields: [notifications.userId],
-    references: [users.id],
-  }),
-  employee: one(employees, {
-    fields: [notifications.employeeId],
-    references: [employees.id],
-  }),
-  deliveries: many(notificationDeliveries),
-}));
-
-// Notification Deliveries Relations
-export const notificationDeliveriesRelations = relations(notificationDeliveries, ({ one }) => ({
-  notification: one(notifications, {
-    fields: [notificationDeliveries.notificationId],
-    references: [notifications.id],
-  }),
-}));
-
-// Notification Preferences Relations
-export const notificationPreferencesRelations = relations(notificationPreferences, ({ one }) => ({
-  employee: one(employees, {
-    fields: [notificationPreferences.employeeId],
-    references: [employees.id],
   }),
 }));
 
@@ -685,3 +732,4 @@ export const aiAnomaliesRelations = relations(aiAnomalies, ({ one }) => ({
     references: [users.id],
   }),
 }));
+

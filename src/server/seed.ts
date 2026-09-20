@@ -135,21 +135,21 @@ export async function runDatabaseSeed(force = false) {
 
     // Populate photo_url for existing seed employees if not set
     const samplePhotos: Record<string, string> = {
-      'EMP-1001': '/uploads/employees/EMP-1001.jpg',
-      'EMP-1002': '/uploads/employees/EMP-1002.jpg',
-      'EMP-1003': '/uploads/employees/EMP-1003.jpg',
-      'EMP-1004': '/uploads/employees/EMP-1004.jpg',
-      'EMP-1005': '/uploads/employees/EMP-1005.jpg',
-      'EMP-1006': '/uploads/employees/EMP-1006.jpg',
-      'EMP-1007': '/uploads/employees/EMP-1007.jpg',
-      'EMP-1008': '/uploads/employees/EMP-1008.jpg',
-      'EMP-1009': '/uploads/employees/EMP-1009.jpg',
-      'EMP-1010': '/uploads/employees/EMP-1010.jpg',
-      'EMP-1011': '/uploads/employees/EMP-1011.jpg',
-      'EMP-1012': '/uploads/employees/EMP-1012.jpg',
+      'EMP-1001': '/uploads/employees/EMP-1001-1789553601108.png',
+      'EMP-1002': '/uploads/employees/EMP-1002-1789553614308.png',
+      'EMP-1003': '/uploads/employees/EMP-1003-1789553590610.png',
+      'EMP-1004': '/uploads/employees/EMP-1004-1789553505349.png',
+      'EMP-1005': '/uploads/employees/EMP-1005-1789553482022.png',
+      'EMP-1006': '/uploads/employees/EMP-1006-1789553575680.png',
+      'EMP-1007': '/uploads/employees/EMP-1007-1789553539629.png',
+      'EMP-1008': '/uploads/employees/EMP-1008-1789553644644.png',
+      'EMP-1009': '/uploads/employees/EMP-1009-1789553551539.png',
+      'EMP-1010': '/uploads/employees/EMP-1010-1789553515725.png',
+      'EMP-1011': '/uploads/employees/EMP-1011-1789553654385.png',
+      'EMP-1012': '/uploads/employees/EMP-1012-1789553529085.png',
     };
     for (const [code, photo] of Object.entries(samplePhotos)) {
-      await pool.query('UPDATE employees SET photo_url = $1 WHERE employee_code = $2 AND (photo_url IS NULL OR photo_url = \'\' OR photo_url LIKE \'https://images.unsplash.com%\')', [photo, code]);
+      await pool.query('UPDATE employees SET photo_url = $1 WHERE employee_code = $2 AND (photo_url IS NULL OR photo_url = \'\' OR photo_url LIKE \'https://images.unsplash.com%\' OR photo_url LIKE \'%.jpg\')', [photo, code]);
     }
 
     // Check if roles already exist
@@ -207,10 +207,18 @@ export async function runDatabaseSeed(force = false) {
       { settingKey: 'company_phone', settingValue: '+232 76 892 411', description: 'Official Corporate Contact Line' },
       { settingKey: 'company_email', settingValue: 'info@apexenterprise.sl', description: 'Official Corporate Email' },
       { settingKey: 'company_overview', settingValue: 'Apex Enterprise SL Ltd (Apex Enterprise Solutions (SL) Ltd.) is a premier Sierra Leonean technology enterprise and software engineering consultancy headquartered in Freetown. The company specializes in building robust, high-security digital infrastructure for public corporations, financial institutions, private sector enterprises, and non-governmental organizations across Sierra Leone and the wider West African region.', description: 'Comprehensive corporate profile and mission statement' },
-      { settingKey: 'company_services', settingValue: '1. Enterprise HRMS & Workforce Management\n2. Smart QR Attendance & Terminal Infrastructure\n3. Automated Sierra Leone Statutory Payroll & Taxation (NASSIT & PAYE)\n4. Custom Enterprise Software Engineering & Cloud Modernization\n5. AI-Powered Enterprise Copilot & Workforce Analytics', description: 'Complete breakdown of corporate products and services' },
-      { settingKey: 'system_architecture_overview', settingValue: 'Enterprise Full-stack architecture: React 18, Vite, TailwindCSS, Node.js, Express.js, PostgreSQL 18, Drizzle ORM, multi-layer RBAC, and AI Copilot Layer.', description: 'Technical architecture of the Smart HR & Payroll system' },
+      { settingKey: 'company_services', settingValue: '1. Enterprise HRMS & Workforce Management\n2. Smart QR Attendance & Terminal Infrastructure\n3. Automated Sierra Leone Statutory Payroll & Taxation (NASSIT & PAYE)\n4. Custom Enterprise Software Engineering & Cloud Modernization', description: 'Complete breakdown of corporate products and services' },
+      { settingKey: 'system_architecture_overview', settingValue: 'Enterprise Full-stack architecture: React 18, Vite, TailwindCSS, Node.js, Express.js, PostgreSQL 18, Drizzle ORM, multi-layer RBAC, and Enterprise Notification Engine.', description: 'Technical architecture of the Smart HR & Payroll system' },
       { settingKey: 'system_attendance_workflow', settingValue: 'Encrypted QR badge generation, Mobile/Kiosk scanning, anti-buddy punching with live photo matching, 60s debounce guard, 15-min grace period, 1hr unpaid break deduction, and automatic overtime calculation.', description: 'Operational lifecycle and anti-fraud mechanics of attendance' },
       { settingKey: 'system_payroll_workflow', settingValue: 'Basic Salary + Approved Overtime (1.5x) + Allowances - Deductions (NASSIT 5% employee / 10% employer + NRA progressive PAYE brackets) = Net Salary. Multi-step Draft -> Preview -> Approved -> Paid workflow.', description: 'Statutory calculation logic and disbursement workflow of payroll' },
+      { settingKey: 'system_business_rules', settingValue: 'Shift: 08:00-17:00 (8h). Grace period: 15 min (08:15 cutoff for Late). Break: 1.0h unpaid deducted. Half-day: 4-6h. Early departure: before 16:30. Overtime: past 17:00 at 1.5x standard or 2.0x holiday. Hourly rate: Basic/(22*8). NASSIT: 5% employee + 10% employer. NRA PAYE progressive brackets (0% up to NLe 600, 15% next 600, 20% next 600, 25% next 600, 30% above 2400). Gross = Basic + OT + Allowances. Net = Gross - Deductions.', description: 'Authoritative operational and statutory business rules' },
+      { settingKey: 'system_database_schema', settingValue: '13 Relational Tables in PostgreSQL 18: users, roles, departments, employees, qr_codes, attendance, overtime_records, payroll_records, payroll_approvals, notifications, notification_replies, notification_deliveries, notification_templates, notification_preferences. 38 PostgreSQL CHECK constraints enforce physical invariants.', description: 'Relational database schema specifications and entity relationships' },
+      { settingKey: 'system_user_roles', settingValue: '5 Roles: Administrator (full governance, users, settings, broadcast, audits), HR Officer (onboarding, departments, attendance, QR codes, announcements), Payroll Officer (payroll batch, overtime approval, tax calculations, payslips), Management (executive read-only dashboards, headcounts, audit logs), Employee (self-service personal punches, personal payslips, notification replies; strict IDOR isolation).', description: 'Role-Based Access Control and authorization privilege matrix' },
+      { settingKey: 'system_security_policies', settingValue: 'Strict IDOR protection on employee endpoints. Strict parameterization preventing SQL injection. Two-stage confirmation required for high-risk write actions. Sensitive compensation numbers excluded from notification subject lines; bank accounts masked.', description: 'Enterprise cybersecurity, IDOR defenses, and compliance mandates' },
+      { settingKey: 'system_notification_workflow', settingValue: 'Multi-channel dispatch (In-App, Email, WhatsApp, SMS). Recipients can reply directly to notifications. Replies are stored in notification_replies and forwarded to HR/Admins (from employee) or to employee (from HR/Admin). Cascade deletion removes replies if notification deleted.', description: 'Two-way notification and reply communication architecture' },
+      { settingKey: 'system_terminology', settingValue: 'Apex HRMS, NASSIT (National Social Security and Insurance Trust), NRA (National Revenue Authority), PAYE (Pay As You Earn), NLe/SLE (New Leone), Debounce Guard (60s cooldown against double punch), Anti-Buddy Punching (live photo display), Ghost Worker (unverified recipient of salary), Cryptographic QR Badge (HMAC token).', description: 'Enterprise domain terminology and glossary' },
+      { settingKey: 'statutory_nassit_compliance', settingValue: 'NASSIT Act No. 5 of 2001: 5% employee basic deduction, 10% employer contribution, 15% total remittance to NASSIT within 15 days of month end. Mandatory pension coverage for all formal workforce.', description: 'Sierra Leone NASSIT statutory regulations and timelines' },
+      { settingKey: 'statutory_paye_tax_brackets', settingValue: 'Sierra Leone NRA Income Tax Act 2000 as amended: Taxable Income = Gross Salary - Employee NASSIT (5%). Brackets in New Leones (NLe): First NLe 600 at 0% (tax-free); Next NLe 600 at 15%; Next NLe 600 at 20%; Next NLe 600 at 25%; Above NLe 2,400 at 30%.', description: 'Sierra Leone PAYE income tax progressive bracket schedule' },
     ];
 
     for (const s of defaultSettings) {
@@ -243,7 +251,7 @@ export async function runDatabaseSeed(force = false) {
         phone: '+232 76 892 411',
         departmentId: deptMap.get('Information Technology & Systems') || 1,
         position: 'Lead Systems Architect & CTO',
-        photoUrl: '/uploads/employees/EMP-1001.jpg',
+        photoUrl: '/uploads/employees/EMP-1001-1789553601108.png',
         basicSalary: '8500.00',
         status: 'active',
       },
@@ -255,7 +263,7 @@ export async function runDatabaseSeed(force = false) {
         phone: '+232 78 345 678',
         departmentId: deptMap.get('Human Resources & Talent Management') || 2,
         position: 'Head of Human Resources & Personnel',
-        photoUrl: '/uploads/employees/EMP-1002.jpg',
+        photoUrl: '/uploads/employees/EMP-1002-1789553614308.png',
         basicSalary: '6500.00',
         status: 'active',
       },
@@ -267,7 +275,7 @@ export async function runDatabaseSeed(force = false) {
         phone: '+232 77 456 789',
         departmentId: deptMap.get('Finance & Payroll Operations') || 3,
         position: 'Senior Payroll & Accounts Director',
-        photoUrl: '/uploads/employees/EMP-1003.jpg',
+        photoUrl: '/uploads/employees/EMP-1003-1789553590610.png',
         basicSalary: '6800.00',
         status: 'active',
       },
@@ -279,7 +287,7 @@ export async function runDatabaseSeed(force = false) {
         phone: '+232 79 567 890',
         departmentId: deptMap.get('Information Technology & Systems') || 1,
         position: 'Full Stack Software Engineer',
-        photoUrl: '/uploads/employees/EMP-1004.jpg',
+        photoUrl: '/uploads/employees/EMP-1004-1789553505349.png',
         basicSalary: '5800.00',
         status: 'active',
       },
@@ -291,7 +299,7 @@ export async function runDatabaseSeed(force = false) {
         phone: '+232 30 678 901',
         departmentId: deptMap.get('Operations & Logistics') || 4,
         position: 'General Operations & Logistics Manager',
-        photoUrl: '/uploads/employees/EMP-1005.jpg',
+        photoUrl: '/uploads/employees/EMP-1005-1789553482022.png',
         basicSalary: '6200.00',
         status: 'active',
       },
@@ -303,7 +311,7 @@ export async function runDatabaseSeed(force = false) {
         phone: '+232 88 789 012',
         departmentId: deptMap.get('Commercial, Sales & Marketing') || 5,
         position: 'Director of Marketing & Communications',
-        photoUrl: '/uploads/employees/EMP-1006.jpg',
+        photoUrl: '/uploads/employees/EMP-1006-1789553575680.png',
         basicSalary: '7200.00',
         status: 'active',
       },
@@ -315,7 +323,7 @@ export async function runDatabaseSeed(force = false) {
         phone: '+232 33 890 123',
         departmentId: deptMap.get('Operations & Logistics') || 4,
         position: 'Fleet & Logistics Dispatch Coordinator',
-        photoUrl: '/uploads/employees/EMP-1007.jpg',
+        photoUrl: '/uploads/employees/EMP-1007-1789553539629.png',
         basicSalary: '4800.00',
         status: 'active',
       },
@@ -327,7 +335,7 @@ export async function runDatabaseSeed(force = false) {
         phone: '+232 76 234 567',
         departmentId: deptMap.get('Information Technology & Systems') || 1,
         position: 'Senior Network & Security Engineer',
-        photoUrl: '/uploads/employees/EMP-1008.jpg',
+        photoUrl: '/uploads/employees/EMP-1008-1789553644644.png',
         basicSalary: '5400.00',
         status: 'active',
       },
@@ -339,7 +347,7 @@ export async function runDatabaseSeed(force = false) {
         phone: '+232 78 765 432',
         departmentId: deptMap.get('Finance & Payroll Operations') || 3,
         position: 'Senior Financial Analyst & Compliance Auditor',
-        photoUrl: '/uploads/employees/EMP-1009.jpg',
+        photoUrl: '/uploads/employees/EMP-1009-1789553551539.png',
         basicSalary: '5200.00',
         status: 'active',
       },
@@ -351,7 +359,7 @@ export async function runDatabaseSeed(force = false) {
         phone: '+232 79 987 654',
         departmentId: deptMap.get('Commercial, Sales & Marketing') || 5,
         position: 'Corporate Client Relations Specialist',
-        photoUrl: '/uploads/employees/EMP-1010.jpg',
+        photoUrl: '/uploads/employees/EMP-1010-1789553515725.png',
         basicSalary: '4600.00',
         status: 'active',
       },
@@ -363,7 +371,7 @@ export async function runDatabaseSeed(force = false) {
         phone: '+232 74 112 233',
         departmentId: deptMap.get('Information Technology & Systems') || 1,
         position: 'Software QA & Systems Analyst',
-        photoUrl: '/uploads/employees/EMP-1011.jpg',
+        photoUrl: '/uploads/employees/EMP-1011-1789553654385.png',
         basicSalary: '5100.00',
         status: 'active',
       },
@@ -375,7 +383,7 @@ export async function runDatabaseSeed(force = false) {
         phone: '+232 31 445 566',
         departmentId: deptMap.get('Operations & Logistics') || 4,
         position: 'Regional Dispatch & Warehouse Supervisor',
-        photoUrl: '/uploads/employees/EMP-1012.jpg',
+        photoUrl: '/uploads/employees/EMP-1012-1789553529085.png',
         basicSalary: '4500.00',
         status: 'active',
       },
@@ -396,7 +404,7 @@ export async function runDatabaseSeed(force = false) {
       if (!emp.photoUrl && emp.employeeCode) {
         await db
           .update(employees)
-          .set({ photoUrl: `/uploads/employees/${emp.employeeCode}.jpg` })
+          .set({ photoUrl: `/uploads/employees/${emp.employeeCode}.png` })
           .where(eq(employees.id, emp.id));
       }
     }

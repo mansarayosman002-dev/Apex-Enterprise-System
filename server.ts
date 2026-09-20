@@ -3,9 +3,10 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
 import { apiRouter } from './src/server/routes.ts';
-import { aiRouter } from './src/ai/ai.routes.ts';
 import { notificationRouter } from './src/notifications/notification.routes.ts';
 import { NotificationQueue } from './src/notifications/notification.queue.ts';
+import { aiRouter } from './src/ai/ai.routes.ts';
+import { AutomationEngine } from './src/ai/ai.automation.ts';
 import { runDatabaseSeed } from './src/server/seed.ts';
 
 dotenv.config();
@@ -105,6 +106,11 @@ async function startServer() {
   app.use('/api', notificationRouter);
   app.use('/api', apiRouter);
   app.use('/api/ai', aiRouter);
+
+  // Initialize AI background automations
+  AutomationEngine.seedAutomationsIfEmpty().catch((err) => {
+    console.warn('Automation engine seed warning:', err);
+  });
 
   // Start background notification queue processor
   NotificationQueue.startWorker();

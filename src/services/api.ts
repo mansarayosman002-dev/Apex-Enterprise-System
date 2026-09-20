@@ -440,51 +440,6 @@ export const api = {
       method: 'POST',
     }),
 
-  // AI HR & Payroll Assistant
-  aiChat: (data: { message?: string; conversationId?: number; confirmedAction?: any }) =>
-    apiRequest<{
-      conversationId: number;
-      message: string;
-      requiresConfirmation?: boolean;
-      pendingAction?: {
-        toolName: string;
-        arguments: Record<string, any>;
-        previewText: string;
-      };
-    }>('/api/ai/chat', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  aiConfirmAction: (data: { conversationId?: number; confirmed: boolean; action: any }) =>
-    apiRequest<{ success: boolean; message: string; result?: any }>('/api/ai/confirm-action', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  getAiConversations: () =>
-    apiRequest<Array<{ id: number; title: string; createdAt: string; updatedAt: string }>>('/api/ai/conversations'),
-
-  getAiActivity: (limit = 20) =>
-    apiRequest<any[]>(`/api/ai/activity?limit=${limit}`),
-
-  getAiAutomations: () =>
-    apiRequest<any[]>('/api/ai/automations'),
-
-  updateAiAutomationStatus: (id: number, active: boolean) =>
-    apiRequest<any>(`/api/ai/automations/${id}/status`, {
-      method: 'PATCH',
-      body: JSON.stringify({ active }),
-    }),
-
-  testAiAutomation: (id: number) =>
-    apiRequest<any>(`/api/ai/automations/${id}/test`, {
-      method: 'POST',
-    }),
-
-  getAiAnomalies: () =>
-    apiRequest<any[]>('/api/ai/anomalies'),
-
   // Notifications
   getNotifications: (limit = 25) =>
     apiRequest<{ notifications: any[]; unreadCount: number }>(`/api/notifications?limit=${limit}`),
@@ -569,9 +524,60 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 
-  shareAiResponse: (data: { targetEmployeeId: number; title?: string; message: string; note?: string }) =>
-    apiRequest<{ success: boolean; message: string; notification?: any }>('/api/ai/share', {
+  getNotificationReplies: (notificationId: number) =>
+    apiRequest<{ replies: any[] }>(`/api/notifications/${notificationId}/replies`),
+
+  replyToNotification: (notificationId: number, message: string) =>
+    apiRequest<{ success: boolean; reply: any }>(`/api/notifications/${notificationId}/replies`, {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify({ message }),
     }),
+
+  // AI Assistant & Task Automation
+  aiChat: (message: string, conversationId?: number) =>
+    apiRequest<{ message: string; conversationId: number; toolInvocations?: any[] }>('/api/ai/chat', {
+      method: 'POST',
+      body: JSON.stringify({ message, conversationId }),
+    }),
+
+  getAiConversations: () =>
+    apiRequest<any[]>('/api/ai/conversations'),
+
+  getAiConversationMessages: (id: number) =>
+    apiRequest<any[]>(`/api/ai/conversations/${id}/messages`),
+
+  deleteAiConversation: (id: number) =>
+    apiRequest<{ success: boolean; message: string }>(`/api/ai/conversations/${id}`, {
+      method: 'DELETE',
+    }),
+
+  getAiAutomations: () =>
+    apiRequest<any[]>('/api/ai/automations'),
+
+  toggleAiAutomation: (id: number, isActive: boolean) =>
+    apiRequest<any>(`/api/ai/automations/${id}/toggle`, {
+      method: 'POST',
+      body: JSON.stringify({ isActive }),
+    }),
+
+  runAiAutomation: (id: number) =>
+    apiRequest<{ success: boolean; summary: string; affectedCount: number }>(`/api/ai/automations/${id}/run`, {
+      method: 'POST',
+    }),
+
+  getAiAutomationHistory: () =>
+    apiRequest<any[]>('/api/ai/automations/history'),
+
+  getAiAnomalies: () =>
+    apiRequest<any[]>('/api/ai/anomalies'),
+
+  getAiKnowledge: () =>
+    apiRequest<{
+      businessRules: any[];
+      dataDictionary: Record<string, any>;
+      securityPolicies: Record<string, any>;
+    }>('/api/ai/knowledge'),
+
+  getAiActivityLogs: () =>
+    apiRequest<any[]>('/api/ai/activity-logs'),
 };

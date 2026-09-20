@@ -33,8 +33,10 @@ import {
   AlertCircle,
   Briefcase,
   FileText,
+  FileSpreadsheet,
 } from 'lucide-react';
-import { exportTableToCsv, exportTableToPdf } from '../utils/exportDocument.ts';
+import { exportTableToExcel, exportTableToPdf } from '../utils/exportDocument.ts';
+import { StatCard } from '../components/common/StatCard.tsx';
 
 export const EmployeesPage: React.FC = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -44,7 +46,9 @@ export const EmployeesPage: React.FC = () => {
   const [selectedDept, setSelectedDept] = useState<string>('');
   const [selectedStatus, setSelectedStatus] = useState<string>('');
   const [sortBy, setSortBy] = useState<string>('name-asc');
-  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>(() =>
+    typeof window !== 'undefined' && window.innerWidth < 768 ? 'grid' : 'table'
+  );
   const [isLoading, setIsLoading] = useState(true);
 
   // Pagination
@@ -192,21 +196,12 @@ export const EmployeesPage: React.FC = () => {
     }
   };
 
-  const exportCSV = () => {
-    if (employees.length === 0) return;
-    const headers = [
-      'Employee Code',
-      'First Name',
-      'Last Name',
-      'Email',
-      'Phone',
-      'Department',
-      'Position',
-      'Basic Salary',
-      'Status',
-      'Created Date',
-    ];
-    exportTableToCsv({
+
+  const exportExcel = () => {
+    if (sortedEmployees.length === 0) return;
+    const totalBasicSalary = sortedEmployees.reduce((acc, e) => acc + (parseFloat(e.basicSalary?.toString() || '0') || 0), 0);
+
+    exportTableToExcel({
       title: 'Master Employee Roster',
       subtitle: 'Active and archived personnel records, departmental assignments, and salary baselines',
       filenamePrefix: 'employees_roster',
@@ -215,6 +210,7 @@ export const EmployeesPage: React.FC = () => {
         'Active Headcount': sortedEmployees.filter((e) => e.status === 'Active').length,
         'Department Filter': selectedDept ? (departments.find((d) => String(d.id) === selectedDept)?.departmentName || 'Filtered') : 'All Departments',
         'Status Filter': selectedStatus || 'All Statuses',
+        'Total Basic Payroll Baseline': `NLe ${totalBasicSalary.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       },
       headers: [
         'Employee Code',
@@ -240,12 +236,26 @@ export const EmployeesPage: React.FC = () => {
         e.status,
         e.createdAt ? new Date(e.createdAt).toLocaleDateString() : '',
       ]),
+      summaryRow: [
+        'TOTALS',
+        `Headcount: ${sortedEmployees.length}`,
+        '',
+        '',
+        '',
+        '',
+        '',
+        totalBasicSalary.toFixed(2),
+        '',
+        '',
+      ],
     });
-    showToast('Employee roster exported as Microsoft Excel CSV.');
+    showToast('Employee roster exported as formatted Excel Workbook.');
   };
 
   const exportPDF = () => {
     if (sortedEmployees.length === 0) return;
+    const totalBasicSalary = sortedEmployees.reduce((acc, e) => acc + (parseFloat(e.basicSalary?.toString() || '0') || 0), 0);
+
     exportTableToPdf({
       title: 'Master Employee Roster',
       subtitle: 'Official corporate employee register and departmental allocations',
@@ -253,6 +263,7 @@ export const EmployeesPage: React.FC = () => {
       metadata: {
         'Total Headcount': sortedEmployees.length,
         'Status Scope': selectedStatus || 'All Statuses',
+        'Basic Payroll Baseline': `NLe ${totalBasicSalary.toFixed(2)}`,
       },
       headers: ['Code', 'First Name', 'Last Name', 'Department', 'Position', 'Salary (NLe)', 'Status'],
       rows: sortedEmployees.map((e) => [
@@ -264,6 +275,15 @@ export const EmployeesPage: React.FC = () => {
         parseFloat(e.basicSalary.toString()).toFixed(2),
         e.status,
       ]),
+      summaryRow: [
+        'TOTALS',
+        `Headcount: ${sortedEmployees.length}`,
+        '',
+        '',
+        '',
+        totalBasicSalary.toFixed(2),
+        '',
+      ],
     });
     showToast('Employee roster exported as official PDF document.');
   };
@@ -281,9 +301,9 @@ export const EmployeesPage: React.FC = () => {
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Employee Management</h1>
+          <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Employees</h1>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Maintain employee records, departments, positions, salaries, and security QR badges
+            Manage staff profiles, departments, and credentials.
           </p>
         </div>
 
@@ -293,21 +313,21 @@ export const EmployeesPage: React.FC = () => {
             className="flex items-center justify-center space-x-1.5 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/70 dark:bg-indigo-950/50 px-3 sm:px-3.5 py-2 text-xs font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 shadow-2xs transition"
           >
             <Upload className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-            <span className="hidden sm:inline">Upload Data (Auto-Upsert)</span>
-            <span className="sm:hidden">Upload</span>
+            <span className="hidden sm:inline">Import Data</span>
+            <span className="sm:hidden">Import</span>
           </button>
           <button
-            onClick={exportCSV}
-            title="Download formatted Excel CSV employee roster"
-            className="flex items-center justify-center space-x-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 sm:px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-2xs transition"
+            onClick={exportExcel}
+            title="Export Excel (.xls)"
+            className="flex items-center justify-center space-x-1.5 rounded-xl border border-emerald-600/30 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 sm:px-3.5 py-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 shadow-2xs transition"
           >
-            <Download className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-            <span className="hidden sm:inline">Export CSV</span>
-            <span className="sm:hidden">CSV</span>
+            <FileSpreadsheet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <span className="hidden sm:inline">Export Excel</span>
+            <span className="sm:hidden">Excel</span>
           </button>
           <button
             onClick={exportPDF}
-            title="Download official PDF employee roster"
+            title="Export PDF"
             className="flex items-center justify-center space-x-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 sm:px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-2xs transition"
           >
             <FileText className="h-4 w-4 text-rose-600 dark:text-rose-400" />
@@ -327,51 +347,50 @@ export const EmployeesPage: React.FC = () => {
 
       {/* Metric Cards Banner */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Total Workforce</span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
-              <Users className="h-4 w-4" />
-            </div>
-          </div>
-          <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">{stats.total}</p>
-          <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">Total registered profiles</p>
-        </div>
+        <StatCard
+          title="Total Staff"
+          value={stats.total}
+          subtitle="All employees"
+          icon={Users}
+          iconBgColor="bg-indigo-50 dark:bg-indigo-950/60"
+          iconTextColor="text-indigo-600 dark:text-indigo-400"
+          badge="Roster"
+          badgeColor="bg-indigo-100 dark:bg-indigo-950/80 text-indigo-800 dark:text-indigo-300"
+        />
 
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Active Staff</span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400">
-              <UserCheck className="h-4 w-4" />
-            </div>
-          </div>
-          <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">{stats.active}</p>
-          <p className="mt-0.5 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">Valid QR credentials</p>
-        </div>
+        <StatCard
+          title="Active"
+          value={stats.active}
+          subtitle={`${stats.total > 0 ? Math.round((stats.active / stats.total) * 100) : 100}% rate`}
+          icon={UserCheck}
+          iconBgColor="bg-emerald-50 dark:bg-emerald-950/60"
+          iconTextColor="text-emerald-600 dark:text-emerald-400"
+          badge="Active"
+          badgeColor="bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300"
+          isLive={true}
+        />
 
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Departments</span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400">
-              <Building className="h-4 w-4" />
-            </div>
-          </div>
-          <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">{departments.length}</p>
-          <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">Organizational units</p>
-        </div>
+        <StatCard
+          title="Departments"
+          value={departments.length}
+          subtitle="Active units"
+          icon={Building}
+          iconBgColor="bg-amber-50 dark:bg-amber-950/60"
+          iconTextColor="text-amber-600 dark:text-amber-400"
+          badge="Units"
+          badgeColor="bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300"
+        />
 
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Monthly Base Payroll</span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-violet-50 dark:bg-violet-950/60 text-violet-600 dark:text-violet-400">
-              <DollarSign className="h-4 w-4" />
-            </div>
-          </div>
-          <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
-            {currency}{stats.payrollBase.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </p>
-          <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">Active base commitment</p>
-        </div>
+        <StatCard
+          title="Base Payroll"
+          value={`${currency}${stats.payrollBase.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          subtitle="Monthly base"
+          icon={DollarSign}
+          iconBgColor="bg-violet-50 dark:bg-violet-950/60"
+          iconTextColor="text-violet-600 dark:text-violet-400"
+          badge="Baseline"
+          badgeColor="bg-violet-100 dark:bg-violet-950/80 text-violet-800 dark:text-violet-300"
+        />
       </div>
 
       {/* Filter and Search Bar */}
@@ -386,7 +405,7 @@ export const EmployeesPage: React.FC = () => {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search employee name, code, position, or email..."
+              placeholder="Search name, code, department..."
               className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 pl-9 pr-3.5 py-2 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-indigo-500 focus:outline-hidden"
             />
             {search && (
@@ -450,18 +469,16 @@ export const EmployeesPage: React.FC = () => {
           <div className="flex items-center rounded-xl border border-slate-300 dark:border-slate-700 p-0.5 bg-slate-50 dark:bg-slate-800">
             <button
               onClick={() => setViewMode('table')}
-              className={`rounded-lg p-1.5 transition ${
-                viewMode === 'table' ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-2xs' : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-              }`}
+              className={`rounded-lg p-1.5 transition ${viewMode === 'table' ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-2xs' : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                }`}
               title="Table View"
             >
               <List className="h-4 w-4" />
             </button>
             <button
               onClick={() => setViewMode('grid')}
-              className={`rounded-lg p-1.5 transition ${
-                viewMode === 'grid' ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-2xs' : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-              }`}
+              className={`rounded-lg p-1.5 transition ${viewMode === 'grid' ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-2xs' : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                }`}
               title="Grid Cards View"
             >
               <LayoutGrid className="h-4 w-4" />
@@ -572,16 +589,14 @@ export const EmployeesPage: React.FC = () => {
                     {/* Status */}
                     <td className="px-4 py-3.5">
                       <span
-                        className={`inline-flex items-center space-x-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
-                          emp.status === 'active'
-                            ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300'
-                            : 'bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300'
-                        }`}
+                        className={`inline-flex items-center space-x-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold ${emp.status === 'active'
+                          ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300'
+                          : 'bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300'
+                          }`}
                       >
                         <span
-                          className={`h-1.5 w-1.5 rounded-full ${
-                            emp.status === 'active' ? 'bg-emerald-500' : 'bg-rose-500'
-                          }`}
+                          className={`h-1.5 w-1.5 rounded-full ${emp.status === 'active' ? 'bg-emerald-500' : 'bg-rose-500'
+                            }`}
                         />
                         <span>{emp.status === 'active' ? 'Active' : 'Inactive'}</span>
                       </span>
@@ -629,11 +644,10 @@ export const EmployeesPage: React.FC = () => {
                         <button
                           onClick={() => setConfirmDeactivateEmp(emp)}
                           title={emp.status === 'active' ? 'Deactivate Employee' : 'Reactivate Employee'}
-                          className={`rounded-lg p-1.5 transition ${
-                            emp.status === 'active'
-                              ? 'text-slate-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-600 dark:hover:text-rose-300'
-                              : 'text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 hover:text-emerald-700 dark:hover:text-emerald-300'
-                          }`}
+                          className={`rounded-lg p-1.5 transition ${emp.status === 'active'
+                            ? 'text-slate-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-600 dark:hover:text-rose-300'
+                            : 'text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 hover:text-emerald-700 dark:hover:text-emerald-300'
+                            }`}
                         >
                           {emp.status === 'active' ? (
                             <UserX className="h-4 w-4" />
@@ -690,11 +704,10 @@ export const EmployeesPage: React.FC = () => {
                   </div>
 
                   <span
-                    className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
-                      emp.status === 'active'
-                        ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300'
-                        : 'bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300'
-                    }`}
+                    className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${emp.status === 'active'
+                      ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300'
+                      : 'bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300'
+                      }`}
                   >
                     {emp.status === 'active' ? 'Active' : 'Inactive'}
                   </span>
@@ -753,11 +766,10 @@ export const EmployeesPage: React.FC = () => {
                   <button
                     onClick={() => setConfirmDeactivateEmp(emp)}
                     title={emp.status === 'active' ? 'Deactivate' : 'Reactivate'}
-                    className={`rounded-lg p-1.5 transition ${
-                      emp.status === 'active'
-                        ? 'text-slate-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-600 dark:hover:text-rose-300'
-                        : 'text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 hover:text-emerald-700 dark:hover:text-emerald-300'
-                    }`}
+                    className={`rounded-lg p-1.5 transition ${emp.status === 'active'
+                      ? 'text-slate-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-600 dark:hover:text-rose-300'
+                      : 'text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 hover:text-emerald-700 dark:hover:text-emerald-300'
+                      }`}
                   >
                     {emp.status === 'active' ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
                   </button>

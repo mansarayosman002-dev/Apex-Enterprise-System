@@ -1,4 +1,3 @@
-import { GoogleGenAI } from '@google/genai';
 import {
   AIProvider,
   AIChatMessage,
@@ -7,139 +6,15 @@ import {
   ToolCall,
 } from './ai.types.ts';
 
-export class GeminiProvider implements AIProvider {
-  name = 'Gemini';
-  private client: GoogleGenAI | null = null;
-  private modelName = 'gemini-2.5-flash';
-
-  constructor() {
-    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
-    if (apiKey) {
-      try {
-        this.client = new GoogleGenAI({ apiKey });
-      } catch (err) {
-        console.warn('[GeminiProvider] Failed to initialize GoogleGenAI client:', err);
-        this.client = null;
-      }
-    }
-  }
-
-  isAvailable(): boolean {
-    return this.client !== null;
-  }
-
-  async chat(
-    messages: AIChatMessage[],
-    tools: AIToolDefinition[],
-    systemInstruction: string,
-    context: UserContext
-  ): Promise<{ content: string; toolCalls?: ToolCall[] }> {
-    if (!this.client) {
-      throw new Error('Gemini API is not configured. Missing GEMINI_API_KEY.');
-    }
-
-    // Convert AIToolDefinition[] to Gemini FunctionDeclarations
-    const functionDeclarations = tools.map((tool) => {
-      const properties: Record<string, any> = {};
-      for (const [key, param] of Object.entries(tool.parameters)) {
-        properties[key] = {
-          type: param.type.toUpperCase(),
-          description: param.description,
-          ...(param.enum ? { enum: param.enum } : {}),
-        };
-      }
-      return {
-        name: tool.name,
-        description: tool.description,
-        parameters: {
-          type: 'OBJECT',
-          properties,
-          required: tool.requiredParams,
-        },
-      };
-    });
-
-    // Format message history
-    const contents: any[] = [];
-    for (const msg of messages) {
-      if (msg.role === 'user') {
-        contents.push({ role: 'user', parts: [{ text: msg.content }] });
-      } else if (msg.role === 'assistant') {
-        const parts: any[] = [];
-        if (msg.content) parts.push({ text: msg.content });
-        if (msg.toolCalls && msg.toolCalls.length > 0) {
-          for (const tc of msg.toolCalls) {
-            parts.push({
-              functionCall: {
-                name: tc.name,
-                args: tc.arguments,
-              },
-            });
-          }
-        }
-        contents.push({ role: 'model', parts });
-      } else if (msg.role === 'tool') {
-        contents.push({
-          role: 'user',
-          parts: [
-            {
-              functionResponse: {
-                name: msg.toolCallId || 'tool_response',
-                response: { result: msg.content },
-              },
-            },
-          ],
-        });
-      }
-    }
-
-    try {
-      const response = await this.client.models.generateContent({
-        model: this.modelName,
-        contents,
-        config: {
-          systemInstruction: { parts: [{ text: systemInstruction }] },
-          tools: functionDeclarations.length > 0 ? [{ functionDeclarations } as any] : undefined,
-          temperature: 0.2,
-        },
-      });
-
-      const candidate = response.candidates?.[0];
-      const parts = candidate?.content?.parts || [];
-
-      const toolCalls: ToolCall[] = [];
-      let textContent = '';
-
-      for (const part of parts) {
-        if ((part as any).functionCall) {
-          const fc = (part as any).functionCall;
-          toolCalls.push({
-            id: `call_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-            name: fc.name,
-            arguments: fc.args || {},
-          });
-        }
-        if (part.text) {
-          textContent += part.text;
-        }
-      }
-
-      return {
-        content: textContent,
-        toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
-      };
-    } catch (err: any) {
-      console.error('[GeminiProvider] Chat generation error:', err);
-      throw err;
-    }
-  }
-}
-
+/**
+ * Local Deterministic Rule-Based AI Engine
+ * Grounded in Sierra Leone labor regulations, PostgreSQL schemas, and real-time tool execution.
+ */
 export class LocalRuleBasedProvider implements AIProvider {
   name = 'Apex Local Intelligence Engine';
 
   isAvailable(): boolean {
-    return true; // Always operational locally
+    return true;
   }
 
   async chat(
@@ -149,487 +24,480 @@ export class LocalRuleBasedProvider implements AIProvider {
     context: UserContext
   ): Promise<{ content: string; toolCalls?: ToolCall[] }> {
     const lastUserMessage = [...messages].reverse().find((m) => m.role === 'user');
-    const query = (lastUserMessage?.content || '').trim().toLowerCase();
+    const query = lastUserMessage?.content?.toLowerCase().trim() || '';
 
-    const allowedToolNames = new Set(tools.map((t) => t.name));
-
-    // Helper to generate a unique tool call ID
-    const genCallId = (name: string) => `call_local_${name}_${Date.now()}`;
-
-    // 1. Current user / Identity
-    if (
-      query.includes('who am i') ||
-      query.includes('my profile') ||
-      query.includes('my account') ||
-      query.includes('my role') ||
-      query.includes('my permissions')
-    ) {
-      if (allowedToolNames.has('get_current_user')) {
+    // Intent mapping to tools
+    // 1. LATE EMPLOYEES
+    if (query.includes('who is late') || query.includes('late employees') || query.includes('tardy') || query.includes('late today') || query.includes('late arrivals')) {
+      if (context.roleName !== 'Employee') {
         return {
           content: '',
-          toolCalls: [{ id: genCallId('get_current_user'), name: 'get_current_user', arguments: {} }],
+          toolCalls: [{ id: `call_${Date.now()}`, name: 'get_late_employees', arguments: {} }],
         };
       }
     }
 
-    // 2. Late employees / Tardiness
-    if (
-      query.includes('late') ||
-      query.includes('tardy') ||
-      query.includes('tardiness') ||
-      query.includes('delay')
-    ) {
-      if (allowedToolNames.has('get_late_employees')) {
-        const dateMatch = query.match(/\d{4}-\d{2}-\d{2}/);
+    // 2. ABSENT EMPLOYEES
+    if (query.includes('who is absent') || query.includes('absent employees') || query.includes('missing employees') || query.includes('absent today') || query.includes('unexcused absence')) {
+      if (context.roleName !== 'Employee') {
         return {
           content: '',
-          toolCalls: [
-            {
-              id: genCallId('get_late_employees'),
-              name: 'get_late_employees',
-              arguments: { date: dateMatch ? dateMatch[0] : undefined },
-            },
-          ],
+          toolCalls: [{ id: `call_${Date.now()}`, name: 'get_absent_employees', arguments: {} }],
         };
       }
     }
 
-    // 3. Absent employees / Attendance gaps
-    if (
-      query.includes('absent') ||
-      query.includes('missing') ||
-      query.includes('not present') ||
-      query.includes('who is not here') ||
-      query.includes('did not show up')
-    ) {
-      if (allowedToolNames.has('get_absent_employees')) {
-        const dateMatch = query.match(/\d{4}-\d{2}-\d{2}/);
-        return {
-          content: '',
-          toolCalls: [
-            {
-              id: genCallId('get_absent_employees'),
-              name: 'get_absent_employees',
-              arguments: { date: dateMatch ? dateMatch[0] : undefined },
-            },
-          ],
-        };
-      }
-    }
-
-    // 4. Personal Attendance (Employee role or specific self query)
-    if (
-      (context.roleName === 'Employee' && (query.includes('attendance') || query.includes('punch') || query.includes('check in') || query.includes('hours'))) ||
-      query.includes('my attendance') ||
-      query.includes('my punches') ||
-      query.includes('my check-in')
-    ) {
-      if (allowedToolNames.has('get_employee_attendance')) {
-        return {
-          content: '',
-          toolCalls: [
-            {
-              id: genCallId('get_employee_attendance'),
-              name: 'get_employee_attendance',
-              arguments: { employeeId: context.employeeId || undefined },
-            },
-          ],
-        };
-      }
-    }
-
-    // 5. General Attendance Summary
+    // 3. ATTENDANCE & PRESENCE SUMMARIES (Admin, HR, Management)
     if (
       query.includes('attendance summary') ||
-      query.includes('attendance report') ||
-      query.includes('today\'s attendance') ||
+      query.includes('attendance overview') ||
+      query.includes('today attendance') ||
       query.includes('attendance today') ||
-      query.includes('overall attendance')
+      query.includes('present today') ||
+      query.includes('how many present') ||
+      query.includes('present in the building') ||
+      query.includes('currently present') ||
+      query.includes('who is present') ||
+      query.includes('attendance rate') ||
+      query.includes('attendance percentage') ||
+      query.includes('punctuality rate') ||
+      query.includes('workforce punctuality') ||
+      query.includes('executive workforce summary') ||
+      query.includes('executive summary')
     ) {
-      if (allowedToolNames.has('get_attendance_summary')) {
-        const dateMatch = query.match(/\d{4}-\d{2}-\d{2}/);
+      if (context.roleName !== 'Employee') {
         return {
           content: '',
-          toolCalls: [
-            {
-              id: genCallId('get_attendance_summary'),
-              name: 'get_attendance_summary',
-              arguments: { date: dateMatch ? dateMatch[0] : undefined },
-            },
-          ],
+          toolCalls: [{ id: `call_${Date.now()}`, name: 'get_attendance_summary', arguments: {} }],
         };
       }
     }
 
-    // 6. Personal Payroll / Payslip
+    // 4. ANOMALIES & UNCLOSED SHIFTS (Admin, HR, Management)
+    if (
+      query.includes('unclosed') ||
+      query.includes('missing checkout') ||
+      query.includes('anomal') ||
+      query.includes('discrepanc') ||
+      query.includes('irregular')
+    ) {
+      return {
+        content: '',
+        toolCalls: [{ id: `call_${Date.now()}`, name: 'get_attendance_anomalies', arguments: {} }],
+      };
+    }
+
+    // 5. EMPLOYEE ATTENDANCE (Personal & Admin lookup)
+    if (
+      query.includes('my attendance') ||
+      query.includes('my records') ||
+      query.includes('when did i check in') ||
+      query.includes('my check in') ||
+      query.includes('did i arrive on time') ||
+      query.includes('employee attendance') ||
+      (context.roleName === 'Employee' && (query.includes('attendance') || query.includes('punches') || query.includes('logs')))
+    ) {
+      const targetEmpId = context.employeeId || 1;
+      return {
+        content: '',
+        toolCalls: [{ id: `call_${Date.now()}`, name: 'get_employee_attendance', arguments: { employeeId: targetEmpId } }],
+      };
+    }
+
+    // 6. EMPLOYEE PAYSLIP (Personal & Admin preview)
     if (
       query.includes('my payroll') ||
       query.includes('my payslip') ||
       query.includes('my salary') ||
-      query.includes('my pay') ||
-      query.includes('my deduction') ||
-      (context.roleName === 'Employee' && query.includes('salary'))
+      query.includes('latest payslip breakdown') ||
+      (context.roleName === 'Employee' && (query.includes('payroll') || query.includes('net pay') || query.includes('deductions') || query.includes('payslip')))
     ) {
-      if (allowedToolNames.has('get_my_payroll')) {
-        const periodMatch = query.match(/\d{4}-\d{2}/);
-        return {
-          content: '',
-          toolCalls: [
-            {
-              id: genCallId('get_my_payroll'),
-              name: 'get_my_payroll',
-              arguments: { period: periodMatch ? periodMatch[0] : undefined },
-            },
-          ],
-        };
-      }
+      return {
+        content: '',
+        toolCalls: [{ id: `call_${Date.now()}`, name: 'get_my_payroll', arguments: {} }],
+      };
     }
 
-    // 7. General Payroll Summary
+    // 7. OVERTIME FORMULA / CALCULATION
+    if (
+      query.includes('how is overtime pay calculated') ||
+      query.includes('how is overtime calculated') ||
+      query.includes('how is my overtime calculated') ||
+      query.includes('overtime formula') ||
+      query.includes('overtime multiplier')
+    ) {
+      return {
+        content: '',
+        toolCalls: [{ id: `call_${Date.now()}`, name: 'get_business_rules', arguments: { category: 'OVERTIME' } }],
+      };
+    }
+
+    // 8. OVERTIME CLAIMS & PENDING REQUESTS (Admin, HR, Payroll, Management, Employee)
+    if (
+      query.includes('overtime') &&
+      (query.includes('summary') ||
+        query.includes('pending') ||
+        query.includes('claims') ||
+        query.includes('requests') ||
+        query.includes('expenditure') ||
+        query.includes('highest overtime') ||
+        query.includes('status of my overtime') ||
+        query.includes('my overtime'))
+    ) {
+      const statusFilter = query.includes('pending') ? 'Pending' : undefined;
+      return {
+        content: '',
+        toolCalls: [{ id: `call_${Date.now()}`, name: 'get_overtime_summary', arguments: statusFilter ? { status: statusFilter } : {} }],
+      };
+    }
+
+    // 9. NASSIT CONTRIBUTION RULES & RATES
+    if (
+      query.includes('nassit') &&
+      (query.includes('rate') ||
+        query.includes('contribution') ||
+        query.includes('pension') ||
+        query.includes('deduction') ||
+        query.includes('rule') ||
+        query.includes('percentage') ||
+        query.includes('what are') ||
+        query.includes('what is'))
+    ) {
+      return {
+        content: '',
+        toolCalls: [{ id: `call_${Date.now()}`, name: 'get_business_rules', arguments: { category: 'PAYROLL' } }],
+      };
+    }
+
+    // 10. PAYE TAX BRACKETS & PROGRESSIVE TIERS
+    if (
+      query.includes('paye') ||
+      query.includes('tax bracket') ||
+      query.includes('income tax') ||
+      query.includes('tax tier') ||
+      query.includes('taxable income')
+    ) {
+      return {
+        content: '',
+        toolCalls: [{ id: `call_${Date.now()}`, name: 'get_business_rules', arguments: { category: 'PAYROLL' } }],
+      };
+    }
+
+    // 11. ENTERPRISE PAYROLL SUMMARIES (Admin, Payroll, Management)
     if (
       query.includes('payroll summary') ||
       query.includes('total payroll') ||
       query.includes('payroll cost') ||
-      query.includes('salary expense') ||
-      query.includes('payroll report')
+      query.includes('overall payroll') ||
+      query.includes('enterprise payroll') ||
+      query.includes('current month payroll') ||
+      query.includes('nassit statutory liability') ||
+      query.includes('department wage') ||
+      query.includes('monthly payroll')
     ) {
-      if (allowedToolNames.has('get_payroll_summary')) {
-        const periodMatch = query.match(/\d{4}-\d{2}/);
+      if (['Administrator', 'Payroll Officer', 'Management'].includes(context.roleName)) {
         return {
           content: '',
-          toolCalls: [
-            {
-              id: genCallId('get_payroll_summary'),
-              name: 'get_payroll_summary',
-              arguments: { period: periodMatch ? periodMatch[0] : undefined },
-            },
-          ],
+          toolCalls: [{ id: `call_${Date.now()}`, name: 'get_payroll_summary', arguments: {} }],
         };
       }
     }
 
-    // 8. Overtime Summary
-    if (
-      query.includes('overtime') ||
-      query.includes(' ot ') ||
-      query.includes('extra hours') ||
-      query.includes('over-time')
-    ) {
-      if (allowedToolNames.has('get_overtime_summary')) {
-        const periodMatch = query.match(/\d{4}-\d{2}/);
-        return {
-          content: '',
-          toolCalls: [
-            {
-              id: genCallId('get_overtime_summary'),
-              name: 'get_overtime_summary',
-              arguments: { period: periodMatch ? periodMatch[0] : undefined },
-            },
-          ],
-        };
-      }
-    }
-
-    // 9. Department Summary
+    // 12. DEPARTMENTS & HEADCOUNTS (Admin, HR, Management, Payroll)
     if (
       query.includes('department') ||
       query.includes('headcount') ||
-      query.includes('staff count') ||
-      query.includes('divisions')
+      query.includes('divisions') ||
+      query.includes('cost center')
     ) {
-      if (allowedToolNames.has('get_department_summary')) {
+      if (query.includes('delete')) {
         return {
           content: '',
-          toolCalls: [
-            {
-              id: genCallId('get_department_summary'),
-              name: 'get_department_summary',
-              arguments: {},
-            },
-          ],
+          toolCalls: [{ id: `call_${Date.now()}`, name: 'get_system_knowledge', arguments: { topic: 'departments' } }],
         };
       }
-    }
-
-    // 10. Attendance Anomalies
-    if (
-      query.includes('anomaly') ||
-      query.includes('anomalies') ||
-      query.includes('buddy punch') ||
-      query.includes('suspicious') ||
-      query.includes('flagged attendance') ||
-      query.includes('ghost punch')
-    ) {
-      if (allowedToolNames.has('get_attendance_anomalies')) {
-        return {
-          content: '',
-          toolCalls: [
-            {
-              id: genCallId('get_attendance_anomalies'),
-              name: 'get_attendance_anomalies',
-              arguments: {},
-            },
-          ],
-        };
-      }
-    }
-
-    // 11. Sensitive Write Actions: Deactivate Employee
-    if (
-      query.includes('deactivate employee') ||
-      query.includes('terminate employee') ||
-      query.includes('suspend employee') ||
-      query.includes('disable employee')
-    ) {
-      if (allowedToolNames.has('deactivate_employee')) {
-        const idMatch = query.match(/employee\s*(?:id|#)?\s*(\d+)/i) || query.match(/(\d+)/);
-        const empId = idMatch ? parseInt(idMatch[1], 10) : 0;
-        return {
-          content: '',
-          toolCalls: [
-            {
-              id: genCallId('deactivate_employee'),
-              name: 'deactivate_employee',
-              arguments: {
-                employeeId: empId,
-                reason: 'Requested via AI conversational interface',
-              },
-            },
-          ],
-        };
-      }
-    }
-
-    // 12. Sensitive Write Actions: Process Batch Payroll
-    if (
-      query.includes('process payroll') ||
-      query.includes('run payroll') ||
-      query.includes('generate payroll') ||
-      query.includes('execute payroll')
-    ) {
-      if (allowedToolNames.has('process_batch_payroll')) {
-        const periodMatch = query.match(/\d{4}-\d{2}/);
-        const today = new Date();
-        const fallbackPeriod = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
-        return {
-          content: '',
-          toolCalls: [
-            {
-              id: genCallId('process_batch_payroll'),
-              name: 'process_batch_payroll',
-              arguments: {
-                period: periodMatch ? periodMatch[0] : fallbackPeriod,
-              },
-            },
-          ],
-        };
-      }
-    }
-
-    // 13. Sensitive Write Actions: Send Notification
-    if (
-      query.includes('notify') ||
-      query.includes('send alert') ||
-      query.includes('send notification') ||
-      query.includes('send reminder')
-    ) {
-      if (allowedToolNames.has('send_notification')) {
-        const idMatch = query.match(/employee\s*(?:id|#)?\s*(\d+)/i);
-        return {
-          content: '',
-          toolCalls: [
-            {
-              id: genCallId('send_notification'),
-              name: 'send_notification',
-              arguments: {
-                employeeId: idMatch ? parseInt(idMatch[1], 10) : undefined,
-                title: 'Notice from Management',
-                message: query.replace(/(?:notify|send notification|send alert|send reminder)/i, '').trim() || 'Please check your pending tasks.',
-                category: 'HR',
-                priority: 'medium',
-              },
-            },
-          ],
-        };
-      }
-    }
-
-    // 14. Fallback Knowledge Base / Conversational Guidance
-    if (
-      query.includes('apex enterprise') ||
-      query.includes('about apex') ||
-      query.includes('who is apex') ||
-      query.includes('services') ||
-      query.includes('what does apex') ||
-      query.includes('tell me about apex')
-    ) {
       return {
-        content: `### Apex Enterprise SL Ltd — Corporate Overview & Services
-
-**Apex Enterprise SL Ltd** (registered as *Apex Enterprise Solutions (SL) Ltd.*) is a premier technology enterprise and corporate software consultancy headquartered in Freetown, Sierra Leone.
-
-- **Headquarters**: 15 Siaka Stevens Street, Freetown, Western Area, Sierra Leone
-- **Official Contact**: info@apexenterprise.sl | +232 76 892 411 | https://apexenterprise.sl
-- **Corporate Mission**: To provide robust, secure, and statutory-compliant digital workforce and financial management infrastructure for commercial corporations, financial institutions, and public sector organizations across Sierra Leone and West Africa.
-
-#### Core Enterprise Services:
-
-1. **Enterprise HRMS & Workforce Management**:
-   - Digital employee onboarding and centralized profile records.
-   - Dynamic department allocation and organizational hierarchy mapping.
-   - Comprehensive role-based access control (RBAC) and leave administration.
-
-2. **Smart QR Attendance & Terminal Infrastructure**:
-   - Cryptographically signed personal QR badge generation.
-   - Dedicated terminal scanning with Dual Mode (Mobile Camera & Kiosk).
-   - Anti-buddy-punching verification via live photo pop-ups.
-   - Debounce protection (60s cooldown) and encrypted offline punch synchronization.
-
-3. **Automated Sierra Leone Statutory Payroll & Taxation**:
-   - NASSIT Pension Engine: Automatic 5% employee basic deduction and 10% employer contribution.
-   - Sierra Leone NRA PAYE Progressive Tax calculation.
-   - Dynamic overtime calculation (1.5x hourly rate) and allowance management.
-   - Direct-deposit bank dispatch schedules and individual payslip generation.
-
-4. **Custom Enterprise Software Engineering & Cloud Infrastructure**:
-   - High-performance, mission-critical web applications built on React 18, Node.js, and PostgreSQL 18.
-   - Military-grade database security, audit trail logging, and automatic disaster recovery backups.
-
-5. **AI-Powered Enterprise Copilot & Workforce Analytics**:
-   - Integrated AI assistant with real-time database queries and strict IDOR data isolation.
-   - Scheduled task automation engine with 10 preloaded workflows.
-   - Proactive anomaly detection scanner for attendance fraud, overtime spikes, and payroll variance.`,
+        content: '',
+        toolCalls: [{ id: `call_${Date.now()}`, name: 'get_department_summary', arguments: {} }],
       };
     }
 
+    // 13. BUSINESS RULES & GRACE PERIOD
     if (
-      query.includes('how the system works') ||
-      query.includes('how does the system work') ||
-      query.includes('how does it work') ||
-      query.includes('system architecture') ||
-      query.includes('system workflow') ||
-      query.includes('explain the system')
+      query.includes('business rule') ||
+      query.includes('working hour') ||
+      query.includes('grace period') ||
+      query.includes('late rule') ||
+      query.includes('shift hour')
     ) {
       return {
-        content: `### Smart Employee Attendance and Payroll Management System — Workflow & Architecture
-
-The system is an end-to-end enterprise solution designed to automate attendance tracking, streamline statutory payroll calculations, and enforce labor law compliance using QR code technology.
-
-#### 1. System Architecture
-- **Frontend**: React 18 with TypeScript, Vite, and TailwindCSS responsive UI.
-- **Backend API**: Node.js and Express.js REST services with parameter sanitization and JWT bearer authentication.
-- **Database**: Relational PostgreSQL 18 with Drizzle ORM, strict foreign key constraints, and indexed audit logs.
-- **Security**: 5-tier Role-Based Access Control (Administrator, HR Officer, Payroll Officer, Management, Employee) with strict IDOR data isolation.
-
-#### 2. QR Code Attendance Workflow
-- **Badge Generation**: Every employee receives a unique, encrypted QR code badge.
-- **Terminal Punching**: Employees present their QR code to the terminal scanner upon arrival and departure.
-- **Anti-Buddy Punching**: The scanner immediately displays the employee's registered photo on screen for visual verification by HR or security personnel.
-- **Debounce Guard**: A 60-second cooldown prevents accidental double-punches.
-- **Working Hours & Overtime Engine**: Evaluates check-ins against standard shift (08:00:00) with a 15-minute grace period. Deducts 1 hour of unpaid break time. Work performed past 17:00:00 is automatically tracked as overtime.
-
-#### 3. Automated Statutory Payroll Workflow
-- **Earnings Computation**: Gross Salary = Basic Salary + Approved Overtime Payout (1.5x hourly multiplier) + Allowances.
-- **Sierra Leone NASSIT Pension**: Automatically computes 5% employee deduction and 10% employer contribution (15% total remitted within 15 days of month end).
-- **Sierra Leone NRA PAYE Progressive Tax**: Progressive bracket deductions applied to taxable income.
-- **Net Pay Calculation**: Net Salary = Gross Salary - Total Deductions (NASSIT + PAYE).
-- **Approval Lifecycle**: Draft -> Preview -> Review & Approve -> Paid, with individual payslip generation and banking export files.
-
-#### 4. AI Copilot & Automation Layer
-- **Live Database Grounding**: Answers inquiries using real-time PostgreSQL data without executing raw SQL.
-- **Confirmation Safeguard**: Write operations (e.g., employee deactivation, batch payroll) require explicit user confirmation before mutation.
-- **Response Features**: Every response supports Markdown Download, 1-click Copy, Expanded Full View, Inline Edit, and Share to Fellow Employee.`,
+        content: '',
+        toolCalls: [{ id: `call_${Date.now()}`, name: 'get_business_rules', arguments: {} }],
       };
     }
 
-    if (query.includes('nassit') || query.includes('pension')) {
+    // 14. DATABASE & DATA DICTIONARY
+    if (query.includes('database') || query.includes('table') || query.includes('data dictionary') || query.includes('schema')) {
       return {
-        content: `### Sierra Leone NASSIT Pension Compliance Guide
-- **Employee Contribution**: **5%** deducted from Basic Salary.
-- **Employer Contribution**: **10%** contributed by the enterprise.
-- **Total Remittance**: **15%** remitted to the National Social Security and Insurance Trust (NASSIT) monthly.
-- **Statutory Deadlines**: Must be remitted within 15 days following the payroll month end to avoid statutory penalties.`,
+        content: '',
+        toolCalls: [{ id: `call_${Date.now()}`, name: 'get_data_dictionary', arguments: {} }],
       };
     }
 
-    if (query.includes('tax') || query.includes('paye')) {
+    // 15. SECURITY POLICIES & RBAC
+    if (
+      query.includes('security policy') ||
+      query.includes('rbac') ||
+      query.includes('permissions') ||
+      query.includes('roles') ||
+      query.includes('see another employee') ||
+      query.includes('other employee salary') ||
+      query.includes('password hash')
+    ) {
       return {
-        content: `### PAYE (Pay As You Earn) Progressive Tax Structure
-The system applies statutory Sierra Leone NRA progressive tax brackets on Taxable Income (Gross Salary less allowable deductions like Employee NASSIT 5%):
-- **Threshold 0 - 600,000 SLE**: 0% (Tax-free allowance)
-- **Next 600,000 SLE**: 15%
-- **Next 600,000 SLE**: 20%
-- **Next 600,000 SLE**: 30%
-- **Above 2,400,000 SLE**: 35%
-
-*All calculations are strictly handled by the verified backend \`payrollEngine.ts\` to ensure 100% audit compliance.*`,
+        content: '',
+        toolCalls: [{ id: `call_${Date.now()}`, name: 'get_security_policies', arguments: {} }],
       };
     }
 
-    if (query.includes('qr') || query.includes('terminal') || query.includes('scan') || query.includes('badge')) {
+    // 16. COMPANY INFO
+    if (query.includes('company') || query.includes('about apex') || query.includes('contact') || query.includes('headquarters')) {
       return {
-        content: `### QR Attendance Terminal & Badges
-- **Terminal Access**: Navigate to the **Terminal** tab in the main navigation.
-- **Dual Mode**: Supports dedicated mobile camera badge scanning and kiosk mode.
-- **Anti-Buddy Punching**: The HR scanner immediately displays the employee's registered photo for instant visual verification.
-- **Debounce Guard**: Enforces a cooldown threshold to prevent accidental double-punching.
-- **Offline Sync**: Punches made during internet disruptions are encrypted locally and automatically synced once connectivity returns.`,
+        content: '',
+        toolCalls: [{ id: `call_${Date.now()}`, name: 'get_company_info', arguments: {} }],
       };
     }
 
-    // Polite default role-aware assistance
-    const rolePills: Record<string, string[]> = {
-      Administrator: [
-        '- "Show today\'s attendance summary"',
-        '- "Who is late or absent today?"',
-        '- "Show overall payroll summary"',
-        '- "Check for attendance anomalies"',
-        '- "Deactivate employee #5"',
-      ],
+    // 17. CURRENT USER / PROFILE
+    if (query.includes('who am i') || query.includes('my profile') || query.includes('my role')) {
+      return {
+        content: '',
+        toolCalls: [{ id: `call_${Date.now()}`, name: 'get_current_user', arguments: {} }],
+      };
+    }
+
+    // 18. QR CODE BADGES & TERMINAL SCANNER
+    if (
+      query.includes('qr') ||
+      query.includes('badge') ||
+      query.includes('barcode') ||
+      query.includes('clock in') ||
+      query.includes('terminal scanner')
+    ) {
+      return {
+        content: '',
+        toolCalls: [{ id: `call_${Date.now()}`, name: 'get_system_knowledge', arguments: { topic: 'qr_code_rules' } }],
+      };
+    }
+
+    // 19. WORKFLOWS & APPROVAL PROCESSES
+    if (
+      query.includes('workflow') ||
+      query.includes('approval process') ||
+      query.includes('lifecycle') ||
+      query.includes('approve overtime') ||
+      query.includes('reject overtime')
+    ) {
+      return {
+        content: '',
+        toolCalls: [{ id: `call_${Date.now()}`, name: 'get_system_knowledge', arguments: { topic: 'workflows' } }],
+      };
+    }
+
+    // 20. PAYROLL APPROVAL & PERIOD LOCKING
+    if (
+      query.includes('period lock') ||
+      query.includes('modify approved') ||
+      query.includes('payroll approval') ||
+      query.includes('locked period')
+    ) {
+      return {
+        content: '',
+        toolCalls: [{ id: `call_${Date.now()}`, name: 'get_system_knowledge', arguments: { topic: 'payroll_approval_rules' } }],
+      };
+    }
+
+    // 21. PAYSLIP GENERATION & PDF EXPORT
+    if (query.includes('generate payslip') || query.includes('export payslip') || query.includes('pdf payslip')) {
+      return {
+        content: '',
+        toolCalls: [{ id: `call_${Date.now()}`, name: 'get_system_knowledge', arguments: { topic: 'payroll' } }],
+      };
+    }
+
+    // 22. SYSTEM SETTINGS & CONFIGURATION
+    if (query.includes('system setting') || query.includes('global setting') || query.includes('configuration')) {
+      return {
+        content: '',
+        toolCalls: [{ id: `call_${Date.now()}`, name: 'get_system_knowledge', arguments: { topic: 'system_configuration' } }],
+      };
+    }
+
+    // 23. SYSTEM LIMITATIONS
+    if (query.includes('limitation') || query.includes('constraint') || query.includes('boundary')) {
+      return {
+        content: '',
+        toolCalls: [{ id: `call_${Date.now()}`, name: 'get_system_knowledge', arguments: { topic: 'system_limitations' } }],
+      };
+    }
+
+    // 24. AUDIT REQUIREMENTS
+    if (query.includes('audit') || query.includes('audit log') || query.includes('tamper') || query.includes('compliance')) {
+      return {
+        content: '',
+        toolCalls: [{ id: `call_${Date.now()}`, name: 'get_system_knowledge', arguments: { topic: 'audit_requirements' } }],
+      };
+    }
+
+    // 25. DATA PRIVACY & IDOR
+    if (query.includes('privacy') || query.includes('data protection') || query.includes('confidential') || query.includes('idor')) {
+      return {
+        content: '',
+        toolCalls: [{ id: `call_${Date.now()}`, name: 'get_system_knowledge', arguments: { topic: 'data_privacy_requirements' } }],
+      };
+    }
+
+    // 26. OPERATIONAL PROCEDURES & SOPS
+    if (query.includes('procedure') || query.includes('operational') || query.includes('sop') || query.includes('runbook')) {
+      return {
+        content: '',
+        toolCalls: [{ id: `call_${Date.now()}`, name: 'get_system_knowledge', arguments: { topic: 'operational_procedures' } }],
+      };
+    }
+
+    // 27. ERROR CONDITIONS & TROUBLESHOOTING
+    if (
+      query.includes('error condition') ||
+      query.includes('troubleshoot') ||
+      query.includes('failure mode') ||
+      query.includes('cooldown') ||
+      query.includes('duplicate punch') ||
+      query.includes('rejected scan') ||
+      query.includes('second scan') ||
+      query.includes('negative salary')
+    ) {
+      return {
+        content: '',
+        toolCalls: [{ id: `call_${Date.now()}`, name: 'get_system_knowledge', arguments: { topic: 'error_conditions' } }],
+      };
+    }
+
+    // 28. TERMINOLOGY & GLOSSARY
+    if (query.includes('terminology') || query.includes('glossary') || query.includes('definitions') || query.includes('acronym')) {
+      return {
+        content: '',
+        toolCalls: [{ id: `call_${Date.now()}`, name: 'get_system_knowledge', arguments: { topic: 'terminology' } }],
+      };
+    }
+
+    // SYSTEM OVERVIEW & ARCHITECTURE
+    if (query.includes('system architecture') || query.includes('application context') || query.includes('system overview') || query.includes('all rules')) {
+      return {
+        content: '',
+        toolCalls: [{ id: `call_${Date.now()}`, name: 'get_system_knowledge', arguments: { topic: 'all' } }],
+      };
+    }
+
+    // Default conversational responses tailored by user role
+    if (context.roleName === 'Administrator') {
+      return {
+        content: `Hello **${context.username}**! I am the **Apex Enterprise AI Assistant**.
+
+As an **Administrator**, you have **Universal Operational Access** across the entire enterprise. You can ask any question across **all operational domains** (HR, Payroll, Management, and Employee Self-Service):
+
+👑 **Administrator & System Governance**:
+- *"Show today's attendance summary"*
+- *"Check for attendance anomalies"*
+- *"Show the database data dictionary"*
+- *"What are the system business rules?"*
+- *"Show security policies for Employee role"*
+- *"Show global system settings"*
+
+👥 **HR Officer & Workforce Operations**:
+- *"Who is late today?"* / *"Who is absent today?"*
+- *"Who is currently present in the building?"*
+- *"List all pending overtime requests"*
+- *"Show department headcount distribution"*
+- *"Who has unclosed attendance shifts today?"*
+- *"What is the late arrival grace period rule?"*
+
+💰 **Payroll Officer & Statutory Compliance**:
+- *"Show enterprise payroll summary"*
+- *"What are the official NASSIT contribution rates?"*
+- *"Explain the Sierra Leone PAYE tax brackets"*
+- *"How is overtime pay calculated in Apex HRMS?"*
+- *"What is the payroll approval lifecycle?"*
+- *"Can an approved payroll period be modified?"*
+
+📊 **Management & Executive Insights**:
+- *"Give me an executive workforce summary"*
+- *"Which department has the highest overtime expenditure?"*
+- *"What is our monthly NASSIT statutory liability?"*
+- *"What is our overall workforce punctuality rate?"*
+- *"Show department-by-department wage totals"*
+
+👤 **Employee Self-Service Inquiries**:
+- *"Show my attendance record for this month"*
+- *"Did I arrive on time today?"*
+- *"Show my latest payslip breakdown"*
+- *"How do employees clock in using their QR badge?"*
+- *"Why did my second badge scan get rejected?"*
+
+Feel free to ask any question from any role or module above! How can I assist you today?`,
+      };
+    }
+
+    const roleSuggestions: Record<string, string[]> = {
       'HR Officer': [
         '- "Who is late today?"',
         '- "Who is absent today?"',
+        '- "Who is currently present in the building?"',
         '- "Show attendance summary"',
-        '- "Check department headcounts"',
-        '- "Send notification to employee #3: Please submit your leave request"',
+        '- "List department headcounts"',
+        '- "Show pending overtime requests"',
+        '- "Who has unclosed attendance shifts today?"',
       ],
       'Payroll Officer': [
         '- "Show current month payroll summary"',
-        '- "Show overtime records for approval"',
-        '- "Process batch payroll for 2026-09"',
-        '- "What are the NASSIT tax rates?"',
+        '- "What are the official NASSIT contribution rates?"',
+        '- "Explain the Sierra Leone PAYE tax brackets"',
+        '- "How is overtime pay calculated in Apex HRMS?"',
+        '- "Show pending overtime claims for payroll batching"',
       ],
       Management: [
+        '- "Give me an executive workforce summary"',
         '- "Show today\'s attendance overview"',
-        '- "Show overall payroll cost this month"',
-        '- "Show department summaries"',
-        '- "Check overtime hours across departments"',
+        '- "Show department headcount distribution"',
+        '- "Which department has the highest overtime expenditure?"',
+        '- "What is our monthly NASSIT statutory liability?"',
       ],
       Employee: [
-        '- "Show my attendance records"',
-        '- "Show my latest payslip and deductions"',
-        '- "How is my net salary calculated?"',
-        '- "What is NASSIT?"',
+        '- "Show my attendance record for this month"',
+        '- "Did I arrive on time today?"',
+        '- "Show my latest payslip breakdown"',
+        '- "What is the status of my overtime request?"',
+        '- "How do I clock in using my QR badge?"',
       ],
     };
 
-    const suggestions = (rolePills[context.roleName] || rolePills['Employee']).join('\n');
+    const suggestions = (roleSuggestions[context.roleName] || roleSuggestions['Employee']).join('\n');
 
     return {
-      content: `Hello **${context.username}**! I am your **AI HR & Payroll Assistant**.
+      content: `Hello **${context.username}**! I am the **Apex Enterprise AI Assistant**.
 
-I operate securely within your permissions as **${context.roleName}**. Here are some things you can ask me:
+I am trained on our official business rules, PostgreSQL database structures, statutory payroll laws (NASSIT & PAYE), and RBAC security policies.
+
+Here are some suggested actions you can ask me based on your role as **${context.roleName}**:
 
 ${suggestions}
 
-How may I assist you right now?`,
+How can I assist you today?`,
     };
   }
 }
 
 export class OrchestratedAIProvider implements AIProvider {
-  name = 'Apex Hybrid AI Provider';
-  private gemini = new GeminiProvider();
+  name = 'Apex Orchestrated AI Provider';
   private local = new LocalRuleBasedProvider();
 
   isAvailable(): boolean {
@@ -642,17 +510,6 @@ export class OrchestratedAIProvider implements AIProvider {
     systemInstruction: string,
     context: UserContext
   ): Promise<{ content: string; toolCalls?: ToolCall[] }> {
-    // If Gemini is configured and available, try it first
-    if (this.gemini.isAvailable()) {
-      try {
-        return await this.gemini.chat(messages, tools, systemInstruction, context);
-      } catch (geminiErr: any) {
-        console.warn('[OrchestratedAIProvider] Gemini call failed, falling back to Local Engine:', geminiErr?.message || geminiErr);
-        // Fallback to local
-      }
-    }
-
-    // Default to high-performance local rule-based intent engine
     return await this.local.chat(messages, tools, systemInstruction, context);
   }
 }

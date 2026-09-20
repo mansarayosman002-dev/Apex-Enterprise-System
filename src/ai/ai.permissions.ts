@@ -64,6 +64,12 @@ export class AIPermissionValidator {
   }
 }
 
+const toolsByName = new Map<string, AIToolDefinition>();
+
+export function registerToolForPermissions(tool: AIToolDefinition) {
+  toolsByName.set(tool.name, tool);
+}
+
 export function filterAllowedTools(tools: AIToolDefinition[], roleName: UserRole): AIToolDefinition[] {
   return tools.filter((tool) => tool.allowedRoles.includes(roleName));
 }
@@ -73,7 +79,7 @@ export function validateToolExecution(
   user: UserContext,
   args: Record<string, any>
 ): { valid: boolean; error?: string; sanitizedArgs?: Record<string, any> } {
-  const tool = (toolsByName.get(toolName) || undefined) as AIToolDefinition | undefined;
+  const tool = toolsByName.get(toolName);
   if (tool) {
     const access = AIPermissionValidator.validateToolAccess(tool, user);
     if (!access.allowed) {
@@ -88,9 +94,3 @@ export function validateToolExecution(
 
   return { valid: true, sanitizedArgs: paramCheck.sanitizedArgs };
 }
-
-const toolsByName = new Map<string, AIToolDefinition>();
-export function registerToolForPermissions(tool: AIToolDefinition) {
-  toolsByName.set(tool.name, tool);
-}
-

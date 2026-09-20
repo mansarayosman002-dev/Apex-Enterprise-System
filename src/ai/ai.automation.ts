@@ -3,165 +3,57 @@ import {
   aiAutomations,
   aiAutomationExecutions,
   aiAnomalies,
-  notifications,
-  employees,
   attendance,
+  employees,
   overtime,
   payroll,
+  notifications,
 } from '../db/schema.ts';
-import { eq, desc, and, gte, sql } from 'drizzle-orm';
+import { eq, and, sql, desc } from 'drizzle-orm';
 import { NotificationService } from '../notifications/notification.service.ts';
 
-export interface PreloadedAutomation {
-  name: string;
-  description: string;
-  triggerType: string;
-  triggerConfig: any;
-  conditionConfig: any;
-  actionConfig: any;
-  channel: string;
-}
-
-export const PRELOADED_AUTOMATIONS: PreloadedAutomation[] = [
+export const PRELOADED_AUTOMATIONS = [
   {
-    name: 'Daily Morning Late Arrival Digest',
-    description: 'Summarizes all employees arriving after their scheduled shift start and notifies HR Officers.',
+    name: 'Daily Morning Late Arrival Scanner',
+    description: 'Scans attendance punches at 08:35 AM and dispatches notifications for all employees marked late.',
     triggerType: 'scheduled_time',
-    triggerConfig: { cron: '0 10 * * 1-5', time: '10:00 AM' },
-    conditionConfig: { thresholdMinutes: 15 },
-    actionConfig: {
-      type: 'send_digest',
-      recipientRole: 'HR Officer',
-      category: 'Attendance',
-      priority: 'medium',
-    },
+    triggerConfig: { time: '08:35' },
+    conditionConfig: { condition: "status = 'Late'" },
+    actionConfig: { action: 'notify_hr_and_employee', template: 'LATE_ATTENDANCE' },
     channel: 'in_app',
   },
   {
-    name: 'Missing Punch-Out Reminder',
-    description: 'Notifies employees who checked in 9+ hours ago but have not yet registered a check-out punch.',
-    triggerType: 'missing_check_out',
-    triggerConfig: { cron: '0 18 * * 1-5', hoursElapsed: 9 },
-    conditionConfig: { status: 'Present', checkoutNull: true },
-    actionConfig: {
-      type: 'send_employee_alert',
-      message: 'Reminder: Please ensure you scan your badge at the terminal to register your check-out.',
-      category: 'Reminder',
-      priority: 'high',
-    },
-    channel: 'in_app',
-  },
-  {
-    name: 'Weekly Overtime Limit Warning',
-    description: 'Flags employees who have exceeded 15 hours of recorded overtime within the rolling week.',
-    triggerType: 'overtime_detected',
-    triggerConfig: { interval: 'weekly' },
-    conditionConfig: { maxHours: 15 },
-    actionConfig: {
-      type: 'notify_management',
-      category: 'Alert',
-      priority: 'high',
-    },
-    channel: 'in_app',
-  },
-  {
-    name: 'Monthly Pre-Payroll Attendance Audit',
-    description: 'Runs automated reconciliation of unverified punches and missing approvals prior to payroll processing.',
+    name: 'Evening Unclosed Shift Reconciler',
+    description: 'Identifies active employees with check-in records who have not checked out by 17:30 PM.',
     triggerType: 'scheduled_time',
-    triggerConfig: { cron: '0 9 25 * *', dayOfMonth: 25 },
-    conditionConfig: { pendingApprovalsOnly: true },
-    actionConfig: {
-      type: 'audit_report',
-      recipientRole: 'Payroll Officer',
-      category: 'Payroll',
-      priority: 'high',
-    },
+    triggerConfig: { time: '17:30' },
+    conditionConfig: { condition: 'check_out IS NULL' },
+    actionConfig: { action: 'flag_missing_checkout', severity: 'MEDIUM' },
     channel: 'in_app',
   },
   {
-    name: 'Excessive Tardiness Alert',
-    description: 'Alerts HR supervisors when an individual employee is late 3 or more times in a single calendar week.',
-    triggerType: 'employee_late',
-    triggerConfig: { periodDays: 7 },
-    conditionConfig: { minLateCount: 3 },
-    actionConfig: {
-      type: 'escalation_notice',
-      recipientRole: 'HR Officer',
-      category: 'HR',
-      priority: 'urgent',
-    },
+    name: 'Payroll Calculation & Anomaly Auditor',
+    description: 'Audits the current payroll period for negative net pay, missing tax withholdings, or excessive overtime.',
+    triggerType: 'manual_trigger',
+    triggerConfig: {},
+    conditionConfig: { check: 'anomalies' },
+    actionConfig: { action: 'audit_payroll' },
     channel: 'in_app',
   },
   {
-    name: 'Probationary Attendance Health Check',
-    description: 'Generates attendance compliance rating for new hires within their first 90 days of employment.',
+    name: 'Weekly Attendance & Punctuality Digest',
+    description: 'Compiles overall enterprise punctuality and attendance statistics for executive management.',
     triggerType: 'scheduled_time',
-    triggerConfig: { interval: 'bi-weekly' },
-    conditionConfig: { employmentType: 'Probationary' },
-    actionConfig: {
-      type: 'digest_to_hr',
-      category: 'HR',
-      priority: 'medium',
-    },
-    channel: 'in_app',
-  },
-  {
-    name: 'Duplicate Scan Anomaly Notification',
-    description: 'Notifies system security when rapid repeated scans occur within the anti-tamper debounce window.',
-    triggerType: 'duplicate_scan_attempt',
-    triggerConfig: { debounceWindowSeconds: 60 },
-    conditionConfig: { attempts: 2 },
-    actionConfig: {
-      type: 'security_log',
-      category: 'System',
-      priority: 'high',
-    },
-    channel: 'in_app',
-  },
-  {
-    name: 'Holiday Attendance Exception Notice',
-    description: 'Validates and applies holiday overtime multiplier rules for shifts occurring on statutory holidays.',
-    triggerType: 'scheduled_time',
-    triggerConfig: { holidayCalendar: 'Sierra Leone Statutory' },
-    conditionConfig: { isPublicHoliday: true },
-    actionConfig: {
-      type: 'apply_holiday_multiplier',
-      category: 'Payroll',
-      priority: 'medium',
-    },
-    channel: 'in_app',
-  },
-  {
-    name: 'Department Attendance Rate Weekly Report',
-    description: 'Calculates and dispatches department-level attendance and punctuality scores to department heads.',
-    triggerType: 'scheduled_time',
-    triggerConfig: { cron: '0 8 * * 1', dayOfWeek: 'Monday' },
-    conditionConfig: { includeAllActiveDepts: true },
-    actionConfig: {
-      type: 'weekly_digest',
-      category: 'HR',
-      priority: 'low',
-    },
-    channel: 'in_app',
-  },
-  {
-    name: 'Payroll Generation Readiness Check',
-    description: 'Verifies that all timesheets for the current period are closed and approved before payroll locks.',
-    triggerType: 'scheduled_time',
-    triggerConfig: { cron: '0 17 28 * *', dayOfMonth: 28 },
-    conditionConfig: { allTimesheetsClosed: true },
-    actionConfig: {
-      type: 'readiness_badge',
-      category: 'Payroll',
-      priority: 'urgent',
-    },
+    triggerConfig: { day: 'Friday', time: '17:00' },
+    conditionConfig: {},
+    actionConfig: { action: 'generate_weekly_digest' },
     channel: 'in_app',
   },
 ];
 
 export class AutomationEngine {
   /**
-   * Seeds the 10 preloaded automations if the table is empty (disabled by default)
+   * Seeds default automations if not present
    */
   static async seedAutomationsIfEmpty(): Promise<void> {
     try {
@@ -176,13 +68,13 @@ export class AutomationEngine {
             conditionConfig: JSON.stringify(item.conditionConfig),
             actionConfig: JSON.stringify(item.actionConfig),
             channel: item.channel,
-            isActive: false, // strictly disabled by default
+            isActive: true,
           });
         }
-        console.log('[AutomationEngine] Seeded 10 default automation templates (inactive by default).');
+        console.log('[AutomationEngine] Seeded 4 default automation tasks.');
       }
     } catch (err) {
-      console.warn('[AutomationEngine] Failed to seed preloaded automations:', err);
+      console.warn('[AutomationEngine] Failed to seed automations:', err);
     }
   }
 
@@ -194,7 +86,7 @@ export class AutomationEngine {
   }
 
   /**
-   * Toggles automation active status
+   * Toggles automation active state
    */
   static async toggleAutomation(id: number, isActive: boolean) {
     const [updated] = await db
@@ -210,7 +102,7 @@ export class AutomationEngine {
   }
 
   /**
-   * Manually runs an automation
+   * Runs an automation task on demand
    */
   static async runAutomation(id: number, triggeredBy = 'manual_test') {
     const [auto] = await db.select().from(aiAutomations).where(eq(aiAutomations.id, id)).limit(1);
@@ -220,12 +112,10 @@ export class AutomationEngine {
 
     let affectedCount = 0;
     let summary = '';
-    let status = 'success';
+    const status = 'success';
 
     try {
-      // Execute the business action based on automation type
-      if (auto.triggerType === 'scheduled_time' && auto.name.includes('Late')) {
-        // Dispatch late notifications
+      if (auto.name.includes('Late')) {
         const today = new Date().toISOString().split('T')[0];
         const latePunches = await db
           .select({
@@ -239,19 +129,45 @@ export class AutomationEngine {
           .where(and(eq(attendance.attendanceDate, today), eq(attendance.status, 'Late')));
 
         affectedCount = latePunches.length;
-        summary = `Identified ${affectedCount} late employees for ${today}. Digest compiled.`;
+        summary = `Morning scan complete: identified ${affectedCount} late employees for ${today}.`;
 
-        // Send an alert notification
-        await db.insert(notifications).values({
-          title: 'Morning Late Arrival Digest',
-          message: summary,
-          category: 'Attendance',
-          priority: 'medium',
-          status: 'delivered',
-        });
+        if (affectedCount > 0) {
+          await NotificationService.dispatch({
+            title: 'Morning Late Arrival Alert',
+            message: summary,
+            category: 'Attendance',
+            type: 'AI',
+            priority: 'normal',
+          });
+        }
+      } else if (auto.name.includes('Unclosed') || auto.name.includes('Shift')) {
+        const today = new Date().toISOString().split('T')[0];
+        const unclosed = await db
+          .select({
+            id: attendance.id,
+            employeeId: attendance.employeeId,
+            firstName: employees.firstName,
+            lastName: employees.lastName,
+          })
+          .from(attendance)
+          .innerJoin(employees, eq(attendance.employeeId, employees.id))
+          .where(
+            and(
+              eq(attendance.attendanceDate, today),
+              sql`${attendance.checkIn} IS NOT NULL`,
+              sql`${attendance.checkOut} IS NULL`
+            )
+          );
+
+        affectedCount = unclosed.length;
+        summary = `Shift reconciliation complete: identified ${affectedCount} open/unclosed attendance punches.`;
+      } else if (auto.name.includes('Payroll') || auto.name.includes('Auditor')) {
+        const anomalies = await this.scanForAnomalies();
+        affectedCount = anomalies.length;
+        summary = `Payroll & compliance audit complete: ${affectedCount} anomaly items logged.`;
       } else {
         affectedCount = 1;
-        summary = `Automation "${auto.name}" executed successfully. Workflow validated.`;
+        summary = `Automation "${auto.name}" executed successfully.`;
       }
 
       // Record execution
@@ -283,13 +199,13 @@ export class AutomationEngine {
   }
 
   /**
-   * Scans system for attendance & payroll anomalies
+   * Scans system for attendance and payroll anomalies
    */
   static async scanForAnomalies(): Promise<any[]> {
     const anomaliesList: any[] = [];
-
-    // 1. Scan for missing checkouts (>14 hours since check-in)
     const today = new Date().toISOString().split('T')[0];
+
+    // 1. Scan for missing checkouts from previous days
     const missingCheckouts = await db
       .select({
         attId: attendance.id,
@@ -316,11 +232,11 @@ export class AutomationEngine {
         severity: 'MEDIUM',
         entityType: 'attendance',
         entityId: String(mc.attId),
-        description: `Employee ${mc.firstName} ${mc.lastName} checked in at ${mc.checkIn} on ${mc.date} but never checked out.`,
+        description: `Employee ${mc.firstName} ${mc.lastName} clocked in at ${mc.checkIn} on ${mc.date} with no checkout recorded.`,
       });
     }
 
-    // 2. Scan for excessive overtime (> 20 hours in pending or approved)
+    // 2. Scan for high overtime (> 20 hours accumulated)
     const highOT = await db
       .select({
         empId: overtime.employeeId,
@@ -340,11 +256,11 @@ export class AutomationEngine {
         severity: 'HIGH',
         entityType: 'employee',
         entityId: String(hot.empId),
-        description: `Employee ${hot.firstName} ${hot.lastName} has accumulated ${hot.totalOT} overtime hours, exceeding company threshold.`,
+        description: `Employee ${hot.firstName} ${hot.lastName} has logged ${hot.totalOT} total overtime hours.`,
       });
     }
 
-    // Upsert into ai_anomalies if not already existing
+    // Persist anomalies
     for (const an of anomaliesList) {
       const existing = await db
         .select()
@@ -367,19 +283,6 @@ export class AutomationEngine {
           description: an.description,
           status: 'open',
         });
-
-        // Non-blocking notification dispatch for anomaly alert
-        try {
-          NotificationService.dispatch({
-            title: `AI Alert: ${an.anomalyType.replace(/_/g, ' ').toUpperCase()}`,
-            message: an.description,
-            category: 'Alert',
-            type: 'AI',
-            priority: an.severity === 'HIGH' || an.severity === 'CRITICAL' ? 'urgent' : 'high',
-            actionUrl: '/ai-assistant',
-            idempotencyKey: `anom-${an.anomalyType}-${an.entityId}`,
-          }).catch(() => {});
-        } catch {}
       }
     }
 
@@ -389,5 +292,26 @@ export class AutomationEngine {
       .where(eq(aiAnomalies.status, 'open'))
       .orderBy(desc(aiAnomalies.detectedAt))
       .limit(50);
+  }
+
+  /**
+   * Retrieves automation execution history
+   */
+  static async getExecutionHistory(limit = 50) {
+    return await db
+      .select({
+        id: aiAutomationExecutions.id,
+        automationId: aiAutomationExecutions.automationId,
+        automationName: aiAutomations.name,
+        triggeredBy: aiAutomationExecutions.triggeredBy,
+        status: aiAutomationExecutions.status,
+        summary: aiAutomationExecutions.summary,
+        affectedCount: aiAutomationExecutions.affectedCount,
+        executedAt: aiAutomationExecutions.executedAt,
+      })
+      .from(aiAutomationExecutions)
+      .innerJoin(aiAutomations, eq(aiAutomationExecutions.automationId, aiAutomations.id))
+      .orderBy(desc(aiAutomationExecutions.executedAt))
+      .limit(limit);
   }
 }

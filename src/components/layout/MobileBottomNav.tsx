@@ -28,13 +28,13 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   const isEmployee = user?.roleName === 'Employee';
 
   return (
-    <nav className="fixed bottom-0 inset-x-0 z-40 md:hidden bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg border-t border-slate-200/90 dark:border-slate-800 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] dark:shadow-[0_-4px_20px_rgba(0,0,0,0.3)] transition-colors duration-150 safe-area-inset-bottom">
+    <nav className="fixed bottom-0 inset-x-0 z-40 md:hidden bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg border-t border-slate-200/90 dark:border-slate-800 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] dark:shadow-[0_-4px_20px_rgba(0,0,0,0.3)] transition-colors duration-150 safe-area-bottom pb-[max(0.25rem,env(safe-area-inset-bottom))] select-none">
       <div className="flex items-center justify-around h-16 px-2">
         {/* 1. Dashboard */}
         <button
           type="button"
           onClick={() => setActivePage('dashboard')}
-          className={`flex flex-col items-center justify-center flex-1 py-1 transition ${
+          className={`flex flex-col items-center justify-center flex-1 py-1 transition touch-target ${
             activePage === 'dashboard'
               ? 'text-indigo-600 dark:text-indigo-400 font-bold'
               : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
@@ -50,7 +50,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
         <button
           type="button"
           onClick={() => setActivePage('attendance')}
-          className={`flex flex-col items-center justify-center flex-1 py-1 transition ${
+          className={`flex flex-col items-center justify-center flex-1 py-1 transition touch-target ${
             activePage === 'attendance'
               ? 'text-indigo-600 dark:text-indigo-400 font-bold'
               : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
@@ -63,14 +63,15 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
         </button>
 
         {/* 3. Center Elevated QR Scanner Action */}
-        <div className="flex items-center justify-center flex-1 -mt-5">
+        <div className="flex items-center justify-center flex-1 -mt-6">
           <button
             type="button"
             onClick={onOpenScanner}
-            className="flex flex-col items-center justify-center h-13 w-13 rounded-2xl bg-gradient-to-tr from-indigo-600 to-indigo-500 text-white shadow-lg shadow-indigo-500/40 hover:scale-105 active:scale-95 transition ring-4 ring-white dark:ring-slate-900"
+            className="flex flex-col items-center justify-center h-14 w-14 rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-cyan-500 text-white shadow-lg shadow-indigo-500/40 hover:scale-105 active:scale-95 transition ring-4 ring-white dark:ring-slate-900"
             aria-label="Scan QR Code"
+            title="Scan Badge QR Code"
           >
-            <ScanLine className="h-6 w-6" />
+            <ScanLine className="h-6 w-6 animate-pulse" />
           </button>
         </div>
 

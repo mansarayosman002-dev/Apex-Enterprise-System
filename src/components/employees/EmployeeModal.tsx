@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Department, Employee } from '../../types/index.ts';
-import { X, User, Mail, Phone, Building, Briefcase, DollarSign, Key, AlertCircle, RefreshCw, Sparkles, Check, Camera, Upload, Trash2 } from 'lucide-react';
+import { X, User, Mail, Phone, Building, Briefcase, DollarSign, Key, AlertCircle, RefreshCw, Check, Camera, Upload, Trash2 } from 'lucide-react';
 import { api } from '../../services/api.ts';
 import { broadcastEmployeePhotoUpdated } from '../../utils/photoSync.ts';
 
@@ -554,7 +554,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
                 <span>Save Changes</span>
               ) : (
                 <>
-                  <Sparkles className="h-3.5 w-3.5" />
+                  <User className="h-3.5 w-3.5" />
                   <span>Register & Create Badge</span>
                 </>
               )}

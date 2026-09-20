@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { api } from '../../services/api.ts';
 import { useAuth } from '../../context/AuthContext.tsx';
-import { X, Clock, Calendar, AlertCircle, CheckCircle2, Sparkles } from 'lucide-react';
+import { X, Clock, Calendar, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 interface OvertimeRequestModalProps {
   isOpen: boolean;
@@ -138,7 +138,7 @@ export const OvertimeRequestModal: React.FC<OvertimeRequestModalProps> = ({
 
           <div className="rounded-xl border border-indigo-100 dark:border-indigo-900/60 bg-indigo-50/50 dark:bg-indigo-950/40 p-3 text-[11px] text-indigo-900 dark:text-indigo-300">
             <div className="flex items-center space-x-1.5 font-semibold text-indigo-950 dark:text-indigo-200 mb-0.5">
-              <Sparkles className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+              <CheckCircle2 className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
               <span>Approval Workflow</span>
             </div>
             <p className="text-slate-600 dark:text-slate-400">
